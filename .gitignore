@@ -1,0 +1,6 @@
+*~
+*.bak
+*.swp
+*.swo
+web/logs/
+ebooks.sh

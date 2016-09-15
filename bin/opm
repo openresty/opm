@@ -1,0 +1,631 @@
+#!/usr/bin/env perl
+
+# Copyright (C) Yichun Zhang (agentzh)
+
+use strict;
+use warnings;
+
+use File::Find ();
+use File::Path ();
+use File::Copy ();
+use Config ();
+use Digest::MD5 ();
+#use Data::Dumper qw( Dumper );
+
+my $Version = '0.0.1';
+
+my ($TarBall, $RepoLink, $RepoLinkUser, @Licenses);
+
+my %Licenses = (
+    apache2 => 'Apache License 2.0',
+    '3bsd' => 'BSD 3-Clause "New" or "Revised" license',
+    '2bsd' => 'BSD 2-Clause "Simplified" or "FreeBSD" license',
+    gpl => 'GNU General Public License (GPL)',
+    gpl2 => 'GNU General Public License (GPL) version 2',
+    gpl3 => 'GNU General Public License (GPL) version 3',
+    lgpl => 'GNU Library or "Lesser" General Public License (LGPL)',
+    mit => 'MIT license',
+    mozilla2 => 'Mozilla Public License 2.0',
+    cddl => 'Common Development and Distribution License',
+    eclipse => 'Eclipse Public License',
+    public => 'Public Domain',
+    artistic => 'Artistic License',
+    artistic2 => 'Artistic License 2.0',
+    proprietary => 'Proprietary',
+);
+
+sub err {
+    die "ERROR: ", @_;
+}
+
+sub shell {
+    warn join(" ", map { /\s/ ? "'$_'" : $_ } @_), "\n";
+    system(@_) == 0
+        or err "failed to run command.";
+}
+
+my $cmd = shift or
+    err "no command specified.\n";
+
+if ($cmd eq '-v') {
+    print "opm $Version ($Config::Config{archname}, perl $^V)\n";
+    exit;
+}
+
+for ($cmd) {
+    if ($_ eq 'get') {
+        do_get();
+
+    } elsif ($_ eq 'build') {
+        do_build();
+
+    } elsif ($_ eq 'server-build') {
+        do_build(1);
+
+    } elsif ($_ eq 'upload') {
+        do_build();
+        do_upload();
+
+    } else {
+        err "unknown command: $cmd\n";
+    }
+}
+
+sub do_build {
+    my $server_build = shift;
+
+    my $dist_file = "dist.ini";
+    my $data = read_ini($dist_file);
+
+    #warn Dumper($data);
+
+    my $default_sec = delete $data->{default};
+
+    my $dist_name = delete $default_sec->{name};
+    if (!$dist_name) {
+        err "$dist_file: key \"name\" not found in the default section.\n";
+    }
+
+    if (length $dist_name < 3
+        || $dist_name =~ /[^-\w]|^(?:nginx|luajit|resty|openresty|opm|restydoc.*)$/i)
+    {
+        err "$dist_file: bad dist name: $dist_name\n";
+    }
+
+    my $author = delete $default_sec->{author};
+    if (!$author) {
+        err "$dist_file: key \"author\" not found in the default section.\n";
+    }
+
+    my @authors = split /\s*,\s*/, $author;
+    if (grep { !defined || !/[a-zA-Z]/ } @authors) {
+        err "$dist_file: bad value in the \"author\" field of the default section: $author\n";
+    }
+
+    my $is_original = delete $default_sec->{is_original};
+    if (!$is_original) {
+        err "$dist_file: key \"is_original\" not found in the default section.\n";
+    }
+
+    if ($is_original !~ /^(?:yes|no)$/) {
+        err "$dist_file: bad value in the \"is_original\" field of the ",
+            "default section: $is_original (only \"yes\" or \"no\" are allowed)\n";
+    }
+
+    my $license = delete $default_sec->{license};
+    if (!$license) {
+        err "$dist_file: key \"license\" not found in the default section.\n";
+    }
+
+    my @licenses = split /\s*,\s*/, $license;
+    my @license_descs;
+
+    for my $item (@licenses) {
+        my $license_desc = $Licenses{$item};
+        if (!$license_desc) {
+            err "$dist_file: unknown license value: $item\n",
+                "    (only the following license values are recognized: ",
+                join(" ", sort keys %Licenses), ")\n";
+        }
+        push @license_descs, $license_desc;
+    }
+
+    @Licenses = @licenses;
+
+    warn "found license: ", join(", ", @license_descs), ".\n";
+
+    my $dist_abstract = delete $default_sec->{abstract};
+    if (!$dist_abstract) {
+        err "$dist_file: key \"abstract\" not found in the default section.\n";
+    }
+
+    my $repo_link = delete $default_sec->{repo_link};
+    if (!$repo_link) {
+        err "$dist_file: key \"repo_link\" not found in the default section.\n";
+    }
+
+    if ($repo_link !~ m{^https?://}g) {
+        err "$dist_file: bad repo_link value ",
+            "(must be a http:// or https:// link): $repo_link\n";
+    }
+
+    if ($repo_link =~ m{github\.com/([-\w]+)}) {
+        $RepoLinkUser = $1;
+        $RepoLink = $repo_link;
+    }
+
+    if (!$server_build) {
+        my $out = `curl -s -I $repo_link 2>&1`;
+        if ($out =~ m{^ HTTP/1\.\d \s+ (\d+) \b}ix) {
+            my $status = $1;
+            if ($status >= 400) {
+                err "$dist_file: bad repo_link $repo_link: ",
+                    "got HTTP status code $status.\n";
+            }
+        } else {
+            err "$dist_file: bad repo_likn $repo_link: $out\n";
+        }
+    }
+
+    my $version = delete $default_sec->{version};
+
+    if ($server_build && !$version) {
+            err "$dist_file: \"version\" field not defined in the default section.\n";
+    }
+
+    if ($version) {
+        if ($version !~ /\d/ || $version =~ /[^.\w]/) {
+            err "$dist_file: bad version number: $version\n";
+        }
+    }
+
+    my $deps;
+    my $requires = delete $default_sec->{requires};
+
+    if ($requires) {
+        $deps = parse_deps($requires, $dist_file);
+    }
+
+    # TODO check validity of the dependences.
+
+    my $lib_dir = delete $default_sec->{lib_dir};
+
+    if ($server_build && $lib_dir ne 'lib') {
+        err "$dist_file: \"lib_dir\" must be \"lib\".\n";
+    }
+
+    if ($lib_dir) {
+        if (!-d $lib_dir) {
+            err "$dist_file: lib_dir \"$lib_dir\" directory found.\n";
+        }
+
+    } else {
+        $lib_dir = 'lib';
+        if (!-d $lib_dir) {
+            err "default lib_dir \"lib/\" not found.\n";
+        }
+    }
+
+    my $user_main_module = delete $default_sec->{main_module};
+    if ($user_main_module && !-f $user_main_module) {
+        err "$dist_file: main_module file $user_main_module not found.\n";
+    }
+
+    # process Lua module files.
+
+    my $main_module;
+    my @lua_modules;
+
+    File::Find::find(sub {
+        return unless /\.lua$/;
+        (my $name = $File::Find::name) =~ s{^\Q$lib_dir\E/?}{};
+        $name =~ s{/}{-}g;
+        $name =~ s/\.(\w+)$//;
+
+        my $module = {
+            path => $File::Find::name,
+            name => $name,
+        };
+
+        if (!$user_main_module && $dist_name =~ /\Q$name\E$/) {
+            if (!$main_module
+                || length $main_module->{name} > length $name)
+            {
+                $main_module = $module;
+            }
+        }
+
+        #warn $name;
+        push @lua_modules, $module;
+    },  $lib_dir);
+
+    if (!@lua_modules) {
+        err "No Lua modules found under direcgtory $lib_dir.\n";
+    }
+
+    if (!$user_main_module) {
+        if (!$main_module) {
+            @lua_modules = sort { $a->{name} cmp $b->{name} } @lua_modules;
+            my $first = $lua_modules[0];
+            $main_module = $first;
+        }
+    }
+
+    if ($user_main_module) {
+        $main_module = $user_main_module;
+
+    } else {
+        $main_module = $main_module->{path};
+        warn "derived main_module file $main_module\n";
+    }
+
+    open my $in, $main_module
+        or err "cannot open main_module file $main_module for reading: $!\n";
+
+    my $code_ver;
+    while (<$in>) {
+        if (/\b(?:_?VERSION|version)\s*=\s*(.+)/) {
+            (my $ver = $1) =~ s/['"]|\[=*\[|\]=*\]|\s+$//g;
+            if ($ver =~ /\d/) {
+                $code_ver = $ver;
+                last;
+            }
+        }
+    }
+
+    close $in;
+
+    if ($code_ver) {
+        warn "extracted verson number $code_ver from main_module file $main_module.\n";
+
+        if (!$version) {
+            $version = $code_ver;
+        } elsif ($version ne $code_ver) {
+            err "version $version defined in $dist_file does not match ",
+                "version $code_ver defined in main_module file $main_module.\n";
+        }
+
+    }  elsif (!$version) {
+        err "verson not defined in $dist_file or in main_module file $main_module.\n";
+    }
+
+    my $doc_dir = delete $default_sec->{doc_dir};
+
+    if ($server_build && $doc_dir ne 'lib') {
+        err "$dist_file: \"doc_dir\" must be \"lib\".\n";
+    }
+
+    if (%$default_sec) {
+        my @keys = sort keys %$default_sec;
+        err "$dist_file: unrecognized keys under the default section: @keys.\n";
+    }
+
+    if (%$data) {
+        my @keys = sort keys %$data;
+        err "$dist_file: unrecognized section names: @keys.\n";
+    }
+
+    my $root_dir = "$dist_name-$version";
+
+    if ($server_build) {
+        $root_dir .= ".opm";
+    }
+
+    if (-d $root_dir) {
+        shell "rm -rf ./$root_dir";
+    }
+
+    my $dst_lib_dir = File::Spec->catfile($root_dir, "lib");
+    File::Path::make_path($dst_lib_dir);
+
+    if ($server_build) {
+        shell "restydoc-index", "--outdir", $root_dir, ".";
+    }
+
+    for my $mod (@lua_modules) {
+        my $name = $mod->{name};
+        $name =~ s{-}{/}g;
+        $name .= ".lua";
+        my $src = $mod->{path};
+        my $dst = File::Spec->catfile($dst_lib_dir, $name);
+        (my $dir = $dst) =~ s{[^/]*$}{}g;
+        if ($dir && !-d $dir) {
+            File::Path::make_path($dir);
+        }
+
+        #warn $dst;
+        File::Copy::copy($src, $dst)
+            or err "failed to copy $src to $dst: $!\n";
+    }
+
+    # process docs
+
+    my @module_docs;
+
+    if ($doc_dir) {
+        if (!-d $doc_dir) {
+            err "$dist_file: doc_dir \"$doc_dir\" directory found.\n";
+        }
+
+    } else {
+        $doc_dir = 'lib';
+        if (!-d $doc_dir) {
+            err "default doc_dir \"lib/\" not found.\n";
+        }
+    }
+
+    File::Find::find(sub {
+        return unless /\.(md|markdown|pod)$/;
+
+        my $ext = $1;
+
+        (my $fname = $File::Find::name) =~ s{^\Q$lib_dir\E/?}{};
+
+        push @module_docs, {
+            path => $File::Find::name,
+            fname => $fname,
+        };
+
+        #warn "$fname => $File::Find::name";
+    },  $doc_dir);
+
+    if (!$server_build) {
+        my $dst_doc_dir = File::Spec->catfile($root_dir, "lib");
+        File::Path::make_path($dst_doc_dir);
+
+        for my $mod (@module_docs) {
+            my $fname = $mod->{fname};
+            my $src = $mod->{path};
+            my $dst = File::Spec->catfile($dst_doc_dir, $fname);
+            (my $dir = $dst) =~ s{[^/]*$}{}g;
+            if ($dir && !-d $dir) {
+                File::Path::make_path($dir);
+            }
+
+            #warn $dst;
+            File::Copy::copy($src, $dst)
+                or err "failed to copy $src to $dst: $!\n";
+        }
+    }
+
+    {
+        my $found_readme;
+        my @files = (glob('*.md'), glob('*.markdown'), glob('*.pod'));
+        for my $file (@files) {
+            if ($file =~ /^(readme|changes)\.(\w+)$/i) {
+                my ($basename, $ext) = (lc $1, $2);
+
+                if ($basename eq 'readme') {
+                    $basename = 'README';
+                    $found_readme = 1;
+
+                } elsif ($basename eq 'changes') {
+                    $basename = 'Changes';
+                }
+
+                my $dst = File::Spec->catfile($root_dir, "$basename.$ext");
+                File::Copy::copy($file, $dst)
+                    or err "failed to copy $file to $dst: $!\n";
+                next;
+            }
+
+            if ($file =~ /^(?:COPYING|COPYRIGHT)$/i) {
+                my $new_file = uc $file;
+                my $dst = File::Spec->catfile($root_dir, $new_file);
+
+                File::Copy::copy($file, $dst)
+                    or err "failed to copy $file to $dst: $!\n";
+                next;
+            }
+        }
+
+        if (!$found_readme) {
+            err "could not found README.md or README.pod.\n";
+        }
+    }
+
+    $main_module =~ s/^\Q$lib_dir\E/lib/;
+
+    {
+        my $outfile = "$root_dir/dist.ini";
+        open my $out, ">$outfile"
+            or err "failed to open $outfile for writing: $!\n";
+        print $out <<_EOC_;
+name = $dist_name
+abstract = $dist_abstract
+author = $author
+is_original = $is_original
+license = $license
+repo_link = $repo_link
+lib_dir = lib
+doc_dir = lib
+version = $version
+main_module = $main_module
+requires = $requires
+_EOC_
+        close $out;
+    }
+
+    $TarBall = "$root_dir.tar.gz";
+    shell "tar", "-cvzf", $TarBall, $root_dir;
+}
+
+sub read_ini {
+    my $infile = shift;
+    open my $in, $infile
+        or err "cannot open $infile for reading: $!\n";
+
+    my %sections;
+    my $sec_name = 'default';
+    my $sec = ($sections{$sec_name} = {});
+
+    while (<$in>) {
+        next if /^\s*$/ || /^\s*[\#;]/;
+
+        if (/^ \s* (\w+) \s* = \s* (.*)/x) {
+            my ($key, $val) = ($1, $2);
+            $val =~ s/\s+$//;
+            if (exists $sec->{$key}) {
+                err "$infile: line $.: duplicate key in section ",
+                    "\"$sec_name\": $key\n";
+            }
+            $sec->{$key} = $val;
+            next;
+        }
+
+        if (/^ \s* \[ \s* ([^\]]*) \] \s* $/x) {
+            my $name = $1;
+            $name =~ s/\s+$//;
+            if ($name eq '') {
+                err "$infile: line $.: section name empty.\n";
+            }
+
+            if (exists $sections{$name}) {
+                err "$infile: line $.: section \"$name\" redefined.\n";
+            }
+
+            $sec = {};
+            $sections{$name} = $sec;
+            $sec_name = $name;
+
+            next;
+        }
+
+        err "$infile: line $.: syntax error: $_";
+    }
+
+    close $in;
+
+    return \%sections;
+}
+
+sub parse_deps {
+    my ($line, $file) = @_;
+    my @items = split /\s*,\s*/, $line;
+    my @parsed;
+    for my $item (@items) {
+        if ($item =~ /^[-\w]+$/) {
+            push @parsed, $item;
+
+        } elsif ($item =~ /^ ([-\w]+) \s* (\S+) \s* (\S+) $/x) {
+            my ($name, $op, $ver) = ($1, $2, $3);
+
+            if ($op !~ /^ (?: >= | = ) $/x) {
+                err "$file: bad dependency version comparison operator in \"$item\": $op\n";
+            }
+
+            if ($ver !~ /\d/ || $ver =~ /[^-.\w]/) {
+                err "$file: bad version number in dependency specification in \"$item\": $ver\n";
+            }
+
+            push @parsed, [$name, $op, $ver];
+
+        } else {
+            err "$file: bad dependency specification: $item";
+        }
+    }
+
+    @parsed = sort { $a->[0] <=> $b->[0] } @parsed;
+    return \@parsed;
+}
+
+sub do_upload {
+    if (! grep { $_ ne 'proprietary' } @Licenses) {
+        # TODO we may allow this for custom package servers in the future.
+        err "uploading proprietary code is prohibited.\n";
+    }
+
+    my $home = $ENV{HOME};
+    if (!$home) {
+        err "environment HOME not defined.\n";
+    }
+
+    my $rcfile = File::Spec->catfile($home, ".opmrc");
+    if (!-f $rcfile) {
+        # create a stub
+        open my $out, ">$rcfile"
+            or err "cannot open $rcfile for writing: $!\n";
+        print $out <<_EOC_;
+# your github account name (either your github user name or github organization that you owns)
+github_account=
+
+# you can generate a github personal access token from the web UI: https://github.com/settings/tokens
+# IMPORTANT! you are required to assign the scopes "user:email" and "read:org" to your github token.
+# you should NOT assign any other scopes to your token due to security considerations.
+github_token=
+
+# the opm central server for uploading openresty packages.
+upload_server_link=https://opm.openresty.org/api/upload
+_EOC_
+        close $out;
+
+        chmod 0600, $rcfile
+            or err "$rcfile: failed to chmod to 0600: $!\n";
+    }
+
+    my $data = read_ini($rcfile);
+
+    my $default_sec = delete $data->{default};
+
+    my $account = delete $default_sec->{github_account};
+    if (!$account) {
+        err "$rcfile: no \"github_account\" specified.\n";
+    }
+
+    if ($account !~ /^[-\w]+$/) {
+        err "$rcfile: bad \"github_account\" value: $account\n";
+    }
+
+    if (defined $RepoLinkUser && $RepoLinkUser ne $account) {
+        err "$rcfile: github_account \"$account\" does not match the ",
+            "github account \"$RepoLinkUser\" in repo_link $RepoLink in dist.ini.\n";
+    }
+
+    my $token = delete $default_sec->{github_token};
+    if (!$token) {
+        err "$rcfile: no \"github_token\" specified.\n";
+    }
+
+    if ($token !~ /^[a-f0-9]{40}$/i) {
+        err "$rcfile: bad \"github_token\" value: $token\n";
+    }
+
+    my $upload_url = delete $default_sec->{upload_server_link};
+    if (!$upload_url) {
+        err "$rcfile: no upload_server_link specified.\n";
+    }
+
+    if ($upload_url !~ m{^https?://}) {
+        err "$rcfile: the value of upload_server_link must be ",
+            "led by https:// or http://.\n";
+    }
+
+    if (%$default_sec) {
+        my @keys = sort keys %$default_sec;
+        err "$rcfile: unrecognized keys under the default section: @keys.\n";
+    }
+
+    if (%$data) {
+        my @keys = sort keys %$data;
+        err "$rcfile: unrecognized section names: @keys.\n";
+    }
+
+    my $md5sum;
+    {
+        open my $in, $TarBall
+            or err "cannot open $TarBall for reading: $!\n";
+        my $ctx = Digest::MD5->new;
+        $ctx->addfile($in);
+        $md5sum = $ctx->hexdigest;
+        close $in;
+    }
+
+    # upload the tar ball to the package server with the github access token.
+
+    # TODO we should migrate from curl to a Lua script via the resty utility.
+    shell("curl", "-i", "-A", "opm $Version ($Config::Config{archname}, perl $^V)",
+          "-H", "X-File: $TarBall", "-H", "X-File-Checksum: $md5sum",
+          "-H", "X-Account: $account", "-H", "X-Token: $token",
+          "-T", $TarBall,
+          $upload_url);
+}
