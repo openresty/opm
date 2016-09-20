@@ -6,6 +6,7 @@ openresty = openresty
 test: | reload
 	#./bin/opm build
 	-time ./bin/opm upload
+	rm -rf /tmp/final /tmp/failed /tmp/original
 	mkdir -p /tmp/incoming /tmp/final /tmp/failed
 	PATH=$$PWD/bin:$$PATH ./util/opm-pkg-indexer.pl
 

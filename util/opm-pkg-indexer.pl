@@ -9,7 +9,7 @@ use Time::HiRes qw( sleep );
 use URI ();
 use LWP::UserAgent ();
 use JSON::XS ();
-use Data::Dumper qw( Dumper );
+#use Data::Dumper qw( Dumper );
 use File::Spec ();
 use File::Copy qw( copy );
 use File::Path qw( make_path );
@@ -85,7 +85,7 @@ sub process_cycle () {
     my $errstr;
 
     for my $upload (@$uploads) {
-        warn Dumper($upload);
+        #warn Dumper($upload);
         my $id = $upload->{id} or die "id not defined";
         my $name = $upload->{name} or die "name not defined";
         my $ver = $upload->{version_s} or die "version_s not defined";
@@ -166,7 +166,7 @@ sub process_cycle () {
                 }
             }
 
-            my $dstfile = File::Spec->catfile($final_subdir, $fname);
+            my $dstfile = File::Spec->catfile($final_subdir, $final_file);
 
             if (!copy($final_file, $dstfile)) {
                 $errstr = "failed to copy $path to $dstfile: $!";
