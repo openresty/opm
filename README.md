@@ -61,7 +61,7 @@ opm get luarocks/foo
 Author
 ======
 
-* Yichun Zhang (agentzh) <agentzh@gmail.com>, CloudFlare Inc.
+Yichun Zhang (agentzh) <agentzh@gmail.com>, CloudFlare Inc.
 
 [Back to TOC](#table-of-contents)
 
