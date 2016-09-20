@@ -617,6 +617,7 @@ _EOC_
             or err "cannot open $TarBall for reading: $!\n";
         my $ctx = Digest::MD5->new;
         $ctx->addfile($in);
+        #$ctx->add("foo");
         $md5sum = $ctx->hexdigest;
         close $in;
     }

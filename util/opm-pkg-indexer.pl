@@ -13,6 +13,7 @@ use JSON::XS ();
 use File::Spec ();
 use File::Copy qw( copy );
 use File::Path qw( make_path );
+use Digest::MD5 ();
 
 sub http_req ($$);
 sub main ();
@@ -91,6 +92,8 @@ sub process_cycle () {
         my $ver = $upload->{version_s} or die "version_s not defined";
         my $uploader = $upload->{uploader} or die "uploader not defined";
         my $org_account = $upload->{org_account};
+        my $checksum = $upload->{checksum} or die "checksum not defined";
+        $checksum =~ s/-//g;
 
         my $account;
         if ($org_account) {
@@ -110,7 +113,28 @@ sub process_cycle () {
             goto FAIL_UPLOAD;
         }
 
-        warn "file $path found";
+        my $md5sum;
+        {
+            my $in;
+            if (!open $in, $path) {
+                $errstr = "cannot open $path for reading: $!";
+                warn $errstr;
+                goto FAIL_UPLOAD;
+            }
+
+            my $ctx = Digest::MD5->new;
+            $ctx->addfile($in);
+            $md5sum = $ctx->hexdigest;
+            close $in;
+        }
+
+        if ($md5sum ne $checksum) {
+            $errstr = "MD5 checksum mismatch: $md5sum vs $checksum\n";
+            warn $errstr;
+            goto FAIL_UPLOAD;
+        }
+
+        #warn "file $path found";
 
         my $cwd = File::Spec->catdir($incoming_dir, $account);
         if (!chdir $cwd) {

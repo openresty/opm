@@ -894,8 +894,9 @@ do
 end
 
 
+-- only for internal use in util/opm-pkg-indexer.pl
 function _M.do_incoming()
-    local sql = "select uploads.id as id, packages.name as name,"
+    local sql = "select uploads.id as id, checksum, packages.name as name,"
                 .. " version_s, checksum,"
                 .. " users.login as uploader, orgs.login as org_account"
                 .. " from uploads"
