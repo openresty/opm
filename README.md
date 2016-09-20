@@ -26,7 +26,7 @@ Synopsis
 For library users:
 
 ```bash
-# account is a github account (being a user or org);
+# account is a github account (either a github user or a github org);
 # lua-resty-foo is the library name under that github account.
 opm get account/lua-resty-foo
 ```
