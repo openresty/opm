@@ -7,10 +7,18 @@ Table of Contents
 =================
 
 * [Name](#name)
+* [Status](#status)
 * [Synopsis](#synopsis)
 * [TODO](#todo)
 * [Author](#author)
 * [Copyright and License](#copyright-and-license)
+
+Status
+======
+
+This is still under early active development and it is not complete nor usable yet.
+
+Check back often ;)
 
 Synopsis
 ========
@@ -47,6 +55,8 @@ TODO
 ```console
 opm get luarocks/foo
 ```
+
+[Back to TOC](#table-of-contents)
 
 Author
 ======
