@@ -19,6 +19,7 @@ local ngx_var = ngx.var
 local say = ngx.say
 local req_read_body = ngx.req.read_body
 local decode_json = cjson.decode
+local encode_json = cjson.encode
 local req_method = ngx.req.get_method
 local req_body_file = ngx.req.get_body_file
 local os_exec = os.execute
@@ -63,7 +64,8 @@ local match_table = {}
 local ver2pg_array
 
 
-function _M.go()
+-- an entry point
+function _M.do_upload()
     local ctx = ngx.ctx
 
     -- check request method.
@@ -380,7 +382,7 @@ function _M.go()
 
     -- insert the new uploaded task to the uplaods database.
 
-    local sql1 = "insert into uploads (uploader, size, name, checksum, "
+    local sql1 = "insert into uploads (uploader, size, package, checksum, "
                   .. "version_v, version_s, client_addr"
 
     local sql2 = ""
@@ -389,7 +391,7 @@ function _M.go()
     end
 
     local sql3 = ") values (" .. user_id .. ", " .. size
-                 .. ", " .. quote_sql_str(pkg_name)
+                 .. ", " .. pkg_id  -- from our own db
                  .. ", " .. quote_sql_str(user_md5)
                  .. ", " .. ver_v
                  .. ", " .. quote_sql_str(pkg_version)
@@ -882,6 +884,29 @@ do
 
         return "'{" .. tab_concat(ver_v, ",") .. "}'"
     end
+end
+
+
+function _M.do_incoming()
+    local sql = "select packages.name as name, version_s, checksum, uploader, org_account"
+                .. " from uploads left join packages on uploads.package = packages.id"
+                .. " where processed = false and indexed = false"
+                .. " order by created_at asc limit 10"
+
+    local rows = query_db(sql)
+
+    say(encode_json{
+        incomding_dir = incoming_directory,
+        uploads = rows
+    })
+end
+
+
+function _M.do_fail_indexing()
+end
+
+
+function _M.do_complete_indexing()
 end
 
 

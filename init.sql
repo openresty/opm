@@ -94,7 +94,7 @@ create table uploads (
                                               -- account != uploader
     checksum uuid not null,  -- MD5 checksum
     size integer not null,
-    name varchar(128) not null,
+    package integer references packages(id),
     abstract text,
 
     version_v integer[] not null,

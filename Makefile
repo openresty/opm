@@ -5,7 +5,8 @@ openresty = openresty
 .PHONY: test
 test: | reload
 	#./bin/opm build
-	time ./bin/opm upload
+	-time ./bin/opm upload
+	./util/opm-pkg-indexer.pl
 
 .PHONY: run
 run:
