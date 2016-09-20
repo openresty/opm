@@ -6,7 +6,8 @@ openresty = openresty
 test: | reload
 	#./bin/opm build
 	-time ./bin/opm upload
-	./util/opm-pkg-indexer.pl
+	mkdir -p /tmp/incoming /tmp/final /tmp/failed
+	PATH=$$PWD/bin:$$PATH ./util/opm-pkg-indexer.pl
 
 .PHONY: run
 run:
@@ -18,7 +19,7 @@ reload:
 	$(openresty) -p $(webpath)/ -t
 	test -f $(pidfile)
 	rm -f $(webpath)/logs/error.log
-	rm -f /tmp/openresty/*
+	#rm -f /tmp/openresty/*
 	#kill -USR1 `cat $(pidfile)`
 	kill -HUP `cat $(pidfile)`
 	sleep 0.002

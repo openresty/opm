@@ -105,13 +105,15 @@ create table uploads (
     is_original boolean,
     repo_link varchar(1024),
 
-    dep_packages integer[],  -- references packages(id)
+    dep_packages text[],
     dep_versions text[],
 
     client_addr inet not null,
-    processed boolean not null default FALSE,
+    failed boolean not null default FALSE,
     indexed boolean not null default FALSE,
 
     created_at timestamp with time zone not null default now(),
     updated_at timestamp with time zone not null default now()
 );
+
+-- TODO create indexes to speed up queries in the opmserver web app.

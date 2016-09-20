@@ -459,6 +459,7 @@ sub read_ini {
     my $sec_name = 'default';
     my $sec = ($sections{$sec_name} = {});
 
+    local $_;
     while (<$in>) {
         next if /^\s*$/ || /^\s*[\#;]/;
 

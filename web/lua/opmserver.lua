@@ -32,8 +32,13 @@ local ngx_null = ngx.null
 local tab_concat = table.concat
 
 
-local incoming_directory = "/tmp"
+local incoming_directory = "/tmp/incoming"
+local final_directory = "/tmp/final"
+
 local MIN_TARBALL_SIZE = 136
+
+
+cjson.encode_empty_table_as_object(false)
 
 
 local _M = {
@@ -321,24 +326,28 @@ function _M.do_upload()
         if login == account then
             -- user account
             assert(user_id)
+            assert(pkg_id)
 
             sql = "select version_s, created_at from uploads where uploader = "
-                  .. user_id
+                  .. user_id  -- user_id is from our own db
                   .. " and org_account is null and version_v = "
                   .. ver_v
-                  .. " and name = " .. quote_sql_str(pkg_name)
+                  .. " and package = " .. pkg_id  -- pkg_id is from our own db
+                  .. " and failed != true"
 
         else
             -- org account
             assert(user_id)
             assert(org_id)
+            assert(pkg_id)
 
             sql = "select version_s, created_at from uploads where uploader = "
                   .. user_id
                   .. " and org_account = "
                   .. org_id
                   .. " and version_v = " .. ver_v
-                  .. " and name = " .. quote_sql_str(pkg_name)
+                  .. " and package = " .. pkg_id
+                  .. " and failed != true"
         end
 
         local rows = query_db(sql)
@@ -368,11 +377,8 @@ function _M.do_upload()
         shell(ctx, "mkdir -p " .. dst_dir)
 
         local dst_file = dst_dir .. "/" .. fname
-        local fh, err = io_open(dst_file, "rb")
-        if fh then
-            io_close(fh)
-            return log_and_out_err(ctx, 400, "duplicate file upload: ", fname)
-        end
+
+        -- we simply override the existing file with the same name (if any).
 
         dd("cp ", file, " ", dst_file)
         shell(ctx, "cp " .. file .. " " .. dst_file)
@@ -612,7 +618,8 @@ end
 
 function db_insert_user_verified_email(ctx, user_id, email)
     local sql = "update users set verified_email = " .. quote_sql_str(email)
-                .. " where id = " .. user_id
+                .. ", updated_at = now() where id = " .. user_id
+
     local res = query_db(sql)
     assert(res.affected_rows == 1)
 end
@@ -888,26 +895,125 @@ end
 
 
 function _M.do_incoming()
-    local sql = "select packages.name as name, version_s, checksum, uploader, org_account"
-                .. " from uploads left join packages on uploads.package = packages.id"
-                .. " where processed = false and indexed = false"
-                .. " order by created_at asc limit 10"
+    local sql = "select uploads.id as id, packages.name as name,"
+                .. " version_s, checksum,"
+                .. " users.login as uploader, orgs.login as org_account"
+                .. " from uploads"
+                .. " left join packages on uploads.package = packages.id"
+                .. " left join users on uploads.uploader = users.id"
+                .. " left join orgs on uploads.org_account = orgs.id"
+                .. " where uploads.failed = false and uploads.indexed = false"
+                .. " order by uploads.created_at asc limit 50"
 
     local rows = query_db(sql)
 
     say(encode_json{
-        incomding_dir = incoming_directory,
+        incoming_dir = incoming_directory,
+        final_dir = final_directory,
         uploads = rows
     })
 end
 
 
-function _M.do_fail_indexing()
-end
+do
+    local req_body_data = ngx.req.get_body_data
+    local rmfile = os.remove
 
+    -- only for internal use in util/opm-pkg-indexer.pl
+    function _M.do_processed()
+        if req_method() ~= "PUT" then
+            return ngx.exit(405)
+        end
 
-function _M.do_complete_indexing()
-end
+        local ctx = {}
+
+        req_read_body()
+
+        local json = req_body_data()
+        if not json then
+            return log_and_out_err(ctx, 400, "no request body found")
+        end
+
+        local data, err = decode_json(json)
+        if not data then
+            return log_and_out_err(ctx, 400,
+                                   "failed to parse the request body as JSON: ",
+                                   json)
+        end
+
+        local id = tonumber(data.id)
+        if not id then
+            return log_and_out_err(ctx, 400, "bad id value: ", data.id)
+        end
+
+        local sql
+
+        local failed = data.failed
+
+        if failed then
+            sql = "update uploads set failed = true"
+                  .. ", updated_at = now() where id = "
+                  .. quote_sql_str(id)
+
+        else
+            local authors = data.authors
+            if not authors then
+                return log_and_out_err(ctx, 400, "no authors defined")
+            end
+
+            for i, author in ipairs(authors) do
+                authors[i] = quote_sql_str(author)
+            end
+            local authors_v = "ARRAY[" .. tab_concat(authors, ", ") .. "]"
+
+            local repo_link = data.repo_link
+            if not repo_link then
+                return log_and_out_err(ctx, 400, "no repo_link defined")
+            end
+
+            local is_orig = data.is_original and "true" or "false"
+
+            local abstract = data.abstract
+            if not abstract then
+                return log_and_out_err(ctx, 400, "no abstract defined")
+            end
+
+            local licenses = data.licenses
+            if not licenses then
+                return log_and_out_err(ctx, 400, "no licenses defined")
+            end
+
+            for i, license in ipairs(licenses) do
+                licenses[i] = quote_sql_str(license)
+            end
+            local licenses_v = "ARRAY[" .. tab_concat(licenses, ", ") .. "]"
+
+            sql = "update uploads set indexed = true"
+                  .. ", updated_at = now(), authors = "
+                  .. authors_v .. ", repo_link = "
+                  .. quote_sql_str(repo_link) .. ", is_original = "
+                  .. is_orig .. ", abstract = "
+                  .. quote_sql_str(abstract) .. ", licenses = "
+                  .. licenses_v
+                  .. " where id = " .. quote_sql_str(id)
+        end
+
+        local res = query_db(sql)
+        assert(res.affected_rows == 1)
+
+        local file = data.file
+        if not re_find(file, [[.tar.gz$]], "jo") then
+            return log_and_out_err(ctx, 400, "bad file path: ", file)
+        end
+
+        local ok, err = rmfile(file)
+        if not ok then
+            log_err("failed to remove file ", file, ": ", err)
+        end
+
+        say([[{"success":true}]])
+    end
+end -- do
 
 
 return _M
