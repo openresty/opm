@@ -25,7 +25,7 @@ Synopsis
 
 For library users:
 
-```console
+```bash
 # account is a github account (being a user or org);
 # lua-resty-foo is the library name under that github account.
 opm get account/lua-resty-foo
@@ -33,7 +33,7 @@ opm get account/lua-resty-foo
 
 For library authors:
 
-```console
+```bash
 cd /path/to/lua-resty-foo/
 
 opm build
@@ -52,7 +52,7 @@ TODO
 
 * Add (limited) support for LuaRocks via the special namespace `luarocks`, for example,
 
-```console
+```bash
 opm get luarocks/foo
 ```
 
