@@ -145,19 +145,25 @@ sub process_cycle () {
             goto FAIL_UPLOAD;
         }
 
+        my $dist_basename = "$name-$ver";
+        my $dist_dir = File::Spec->rel2abs(
+                            File::Spec->catdir($cwd, $dist_basename));
+
+        if (-d $dist_dir) {
+            shell "rm", "-rf", $dist_dir;
+        }
+
         if (!shell "tar", "-xzf", $path) {
             $errstr = "failed to unpack $fname";
             warn $errstr;
             goto FAIL_UPLOAD;
         }
 
-        my $dir = "$name-$ver";
+        my $dir = $dist_basename;
         if (!-d $dir) {
             $errstr = "directory $dir not found after unpacking $fname";
             goto FAIL_UPLOAD;
         }
-
-        my $dist_dir = File::Spec->catdir($cwd, $dir);
 
         if (!chdir $dir) {
             $errstr = "failed to chdir to $dir $!";
@@ -264,7 +270,9 @@ sub process_cycle () {
         $dir = "../..";
         chdir $dir or warn "cannot chdir $dir: $!";
 
-        shell "rm", "-rf", $dist_dir;
+        if (-d $dist_dir) {
+            shell "rm", "-rf", $dist_dir;
+        }
 
         {
             # back up the original user uploaded file into original_dir.
@@ -329,6 +337,10 @@ FAIL_UPLOAD:
 
             copy($path, $dstfile)
                 or warn "failed to copy $path to $dstfile: $!";
+        }
+
+        if (-d $dist_dir) {
+            shell "rm", "-rf", $dist_dir;
         }
 
         {
