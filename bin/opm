@@ -5,16 +5,21 @@
 use strict;
 use warnings;
 
+use FindBin ();
 use File::Find ();
 use File::Path ();
 use File::Copy ();
+use File::Spec ();
 use Config ();
+use Cwd qw( realpath );
 use Digest::MD5 ();
 #use Data::Dumper qw( Dumper );
 
+sub shell (@);
+
 my $Version = '0.0.1';
 
-my ($TarBall, $RepoLink, $RepoLinkUser, @Licenses);
+my ($TarBall, $RepoLink, $RepoLinkUser, @Licenses, $LuaJIT);
 
 my %Licenses = (
     apache2 => 'Apache License 2.0',
@@ -38,10 +43,12 @@ sub err {
     die "ERROR: ", @_;
 }
 
-sub shell {
+sub shell (@) {
     warn join(" ", map { /\s/ ? "'$_'" : $_ } @_), "\n";
-    system(@_) == 0
-        or err "failed to run command.";
+
+    if (system(@_) != 0) {
+        err "failed to run command\n";
+    }
 }
 
 my $cmd = shift or
@@ -73,6 +80,10 @@ for ($cmd) {
 
 sub do_build {
     my $server_build = shift;
+
+    if (!defined $LuaJIT) {
+        $LuaJIT = find_luajit();
+    }
 
     my $dist_file = "dist.ini";
     my $data = read_ini($dist_file);
@@ -288,6 +299,14 @@ sub do_build {
     }  elsif (!$version) {
         err "verson not defined in $dist_file or in main_module file $main_module.\n";
     }
+
+    # check Lua source file syntax.
+
+    for my $mod (@lua_modules) {
+        shell $LuaJIT, "-bl", $mod->{path}, "/dev/null";
+    }
+
+    # copy document files over.
 
     my $doc_dir = delete $default_sec->{doc_dir};
 
@@ -630,4 +649,16 @@ _EOC_
           "-H", "X-Account: $account", "-H", "X-Token: $token",
           "-T", $TarBall,
           $upload_url);
+}
+
+sub find_luajit {
+    my $lj = realpath(
+                File::Spec->catfile(
+                    $FindBin::RealBin, "../luajit/bin/luajit"));
+
+    if (!-f $lj || !-x $lj) {
+        return 'luajit';
+    }
+
+    return $lj;
 }
