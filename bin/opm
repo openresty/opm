@@ -81,6 +81,8 @@ for ($cmd) {
 sub do_build {
     my $server_build = shift;
 
+    #if ($server_build) { while (1) {} }
+
     if (!defined $LuaJIT) {
         $LuaJIT = find_luajit();
     }
@@ -338,7 +340,8 @@ sub do_build {
     File::Path::make_path($dst_lib_dir);
 
     if ($server_build) {
-        shell "restydoc-index", "--outdir", $root_dir, ".";
+        my $restydoc_index = find_restydoc_index();
+        shell $restydoc_index, "--outdir", $root_dir, ".";
     }
 
     for my $mod (@lua_modules) {
@@ -658,6 +661,19 @@ sub find_luajit {
 
     if (!-f $lj || !-x $lj) {
         return 'luajit';
+    }
+
+    return $lj;
+}
+
+sub find_restydoc_index {
+    my $fname = "restydoc-index";
+    my $lj = realpath(
+                File::Spec->catfile(
+                    $FindBin::RealBin, $fname));
+
+    if (!-f $lj || !-x $lj) {
+        return $fname;
     }
 
     return $lj;

@@ -31,6 +31,8 @@ my $api_server_port = shift || 8080;
 my $failed_dir = shift || "/tmp/failed";
 my $original_dir = shift || "/tmp/original";
 
+$ENV{LC_ALL} = 'C';
+
 if (!-d $failed_dir) {
     make_path $failed_dir;
 }
@@ -171,7 +173,7 @@ sub process_cycle () {
             goto FAIL_UPLOAD;
         }
 
-        if (!shell "opm", "server-build") {
+        if (!shell "ulimit -t 10 -v 204800 && opm server-build") {
             $errstr = "failed to run \"opm server-build\"";
             warn $errstr;
             goto FAIL_UPLOAD;
