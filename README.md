@@ -50,6 +50,8 @@ opm upload
 TODO
 ====
 
+* Add a web site for opm.openresty.org (similar to search.cpan.org).
+* Add support for Lua C modules and LuaJIT FFI modules with standalone C libraries.
 * Add (limited) support for LuaRocks via the special namespace `luarocks`, for example,
 
 ```bash
