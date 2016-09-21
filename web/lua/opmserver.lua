@@ -66,7 +66,7 @@ local db_insert_user_info, db_update_user_info
 local db_insert_org_info, db_insert_org_ownership
 local db_insert_user_verified_email
 local match_table = {}
-local ver2pg_array
+local ver2pg_array, tab2pg_array
 
 
 -- an entry point
@@ -871,10 +871,10 @@ end
 
 do
     local ctx = { pos = 1 }
-    local ver_v = {}
+    local bits = {}
 
     function ver2pg_array(ver_s)
-        tab_clear(ver_v)
+        tab_clear(bits)
 
         ctx.pos = 1
         local i = 0
@@ -886,10 +886,19 @@ do
             end
 
             i = i + 1
-            ver_v[i] = sub(ver_s, fr, to)
+            bits[i] = sub(ver_s, fr, to)
         end
 
-        return "'{" .. tab_concat(ver_v, ",") .. "}'"
+        return "'{" .. tab_concat(bits, ",") .. "}'"
+    end
+
+    function tab2pg_array(list)
+        tab_clear(bits)
+
+        for i, item in ipairs(list) do
+            bits[i] = quote_sql_str(item)
+        end
+        return "ARRAY[" .. tab_concat(bits, ", ") .. "]"
     end
 end
 
@@ -962,10 +971,7 @@ do
                 return log_and_out_err(ctx, 400, "no authors defined")
             end
 
-            for i, author in ipairs(authors) do
-                authors[i] = quote_sql_str(author)
-            end
-            local authors_v = "ARRAY[" .. tab_concat(authors, ", ") .. "]"
+            local authors_v = tab2pg_array(authors)
 
             local repo_link = data.repo_link
             if not repo_link then
@@ -994,6 +1000,21 @@ do
                 return log_and_out_err(ctx, 400, "no final_checksum defined")
             end
 
+            local dep_pkgs = data.dep_packages
+            if not dep_pkgs then
+                return log_and_out_err(ctx, 400, "no dep_packages defined")
+            end
+
+            local dep_ops = data.dep_operators
+            if not dep_ops then
+                return log_and_out_err(ctx, 400, "no dep_operators defined")
+            end
+
+            local dep_vers = data.dep_versions
+            if not dep_vers then
+                return log_and_out_err(ctx, 400, "no dep_versions defined")
+            end
+
             sql = "update uploads set indexed = true"
                   .. ", updated_at = now(), authors = "
                   .. authors_v .. ", repo_link = "
@@ -1001,7 +1022,10 @@ do
                   .. is_orig .. ", abstract = "
                   .. quote_sql_str(abstract) .. ", licenses = "
                   .. licenses_v .. ", final_checksum = "
-                  .. quote_sql_str(final_md5)
+                  .. quote_sql_str(final_md5) .. ", dep_packages = "
+                  .. tab2pg_array(dep_pkgs) .. ", dep_operators = "
+                  .. tab2pg_array(dep_ops) .. ", dep_versions = "
+                  .. tab2pg_array(dep_vers)
                   .. " where id = " .. quote_sql_str(id)
         end
 

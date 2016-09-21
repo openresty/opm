@@ -285,6 +285,29 @@ sub process_cycle () {
 
         my $licenses = [split /\s*,\s*/, $license];
 
+        my $requires = $default_sec->{requires};
+        my (@dep_pkgs, @dep_ops, @dep_vers);
+        if ($requires) {
+            my ($deps, $err) = parse_deps($requires);
+            if ($err) {
+                $errstr = "$inifile: requires: $err";
+                warn $errstr;
+                goto FAIL_UPLOAD;
+            }
+
+            for my $dep (@$deps) {
+                my ($name, $op, $ver) = @$dep;
+
+                if (!$op && $ver) {
+                    $op = ">=";
+                }
+
+                push @dep_pkgs, $name;
+                push @dep_ops, $op;
+                push @dep_vers, $ver || undef;
+            }
+        }
+
         $dir = "../..";
         chdir $dir or warn "cannot chdir $dir: $!";
 
@@ -326,8 +349,9 @@ sub process_cycle () {
             is_original => $is_orig,
             repo_link => $repo_link,
             final_checksum => $final_md5,
-            dep_packages => [],
-            dep_versions => [],
+            dep_packages => \@dep_pkgs,
+            dep_operators => \@dep_ops,
+            dep_versions => \@dep_vers,
             file => $path,
         };
 
@@ -483,4 +507,36 @@ sub read_ini ($) {
     close $in;
 
     return \%sections;
+}
+
+sub parse_deps {
+    my ($line, $file) = @_;
+    my @items = split /\s*,\s*/, $line;
+    my @parsed;
+    for my $item (@items) {
+        if ($item =~ /^[-\w]+$/) {
+            push @parsed, [$item];
+
+        } elsif ($item =~ /^ ([-\w]+) \s* (\S+) \s* (\S+) $/x) {
+            my ($name, $op, $ver) = ($1, $2, $3);
+
+            if ($op !~ /^ (?: >= | = ) $/x) {
+                return undef, "$file: bad dependency version comparison"
+                              . " operator in \"$item\": $op";
+            }
+
+            if ($ver !~ /\d/ || $ver =~ /[^-.\w]/) {
+                return undef, "$file: bad version number in dependency"
+                              . " specification in \"$item\": $ver";
+            }
+
+            push @parsed, [$name, $op, $ver];
+
+        } else {
+            return undef, "$file: bad dependency specification: $item";
+        }
+    }
+
+    @parsed = sort { $a->[0] cmp $b->[0] } @parsed;
+    return \@parsed;
 }

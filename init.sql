@@ -107,6 +107,7 @@ create table uploads (
     repo_link varchar(1024),
 
     dep_packages text[],
+    dep_operators varchar(2)[],
     dep_versions text[],
 
     client_addr inet not null,

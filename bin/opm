@@ -528,7 +528,7 @@ sub parse_deps {
     my @parsed;
     for my $item (@items) {
         if ($item =~ /^[-\w]+$/) {
-            push @parsed, $item;
+            push @parsed, [$item];
 
         } elsif ($item =~ /^ ([-\w]+) \s* (\S+) \s* (\S+) $/x) {
             my ($name, $op, $ver) = ($1, $2, $3);
@@ -548,7 +548,7 @@ sub parse_deps {
         }
     }
 
-    @parsed = sort { $a->[0] <=> $b->[0] } @parsed;
+    @parsed = sort { $a->[0] cmp $b->[0] } @parsed;
     return \@parsed;
 }
 
