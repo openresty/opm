@@ -92,8 +92,9 @@ sub process_cycle () {
         my $ver = $upload->{version_s} or die "version_s not defined";
         my $uploader = $upload->{uploader} or die "uploader not defined";
         my $org_account = $upload->{org_account};
-        my $checksum = $upload->{checksum} or die "checksum not defined";
-        $checksum =~ s/-//g;
+        my $orig_checksum = $upload->{orig_checksum}
+            or die "orig_checksum not defined";
+        $orig_checksum =~ s/-//g;
 
         my $account;
         if ($org_account) {
@@ -128,8 +129,9 @@ sub process_cycle () {
             close $in;
         }
 
-        if ($md5sum ne $checksum) {
-            $errstr = "MD5 checksum mismatch: $md5sum vs $checksum\n";
+        if ($md5sum ne $orig_checksum) {
+            $errstr = "MD5 checksum for the original package mismatch: "
+                      . "$md5sum vs $orig_checksum\n";
             warn $errstr;
             goto FAIL_UPLOAD;
         }

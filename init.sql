@@ -92,7 +92,8 @@ create table uploads (
     uploader integer references users(id) not null,
     org_account integer references orgs(id),  -- only take a value when the
                                               -- account != uploader
-    checksum uuid not null,  -- MD5 checksum
+    orig_checksum uuid not null,  -- MD5 checksum for the original pkg
+    final_checksum uuid,          -- MD5 checksum for the final pkg
     size integer not null,
     package integer references packages(id),
     abstract text,

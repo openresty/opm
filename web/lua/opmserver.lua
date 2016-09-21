@@ -388,7 +388,7 @@ function _M.do_upload()
 
     -- insert the new uploaded task to the uplaods database.
 
-    local sql1 = "insert into uploads (uploader, size, package, checksum, "
+    local sql1 = "insert into uploads (uploader, size, package, orig_checksum, "
                   .. "version_v, version_s, client_addr"
 
     local sql2 = ""
@@ -896,8 +896,8 @@ end
 
 -- only for internal use in util/opm-pkg-indexer.pl
 function _M.do_incoming()
-    local sql = "select uploads.id as id, checksum, packages.name as name,"
-                .. " version_s, checksum,"
+    local sql = "select uploads.id as id, packages.name as name,"
+                .. " version_s, orig_checksum,"
                 .. " users.login as uploader, orgs.login as org_account"
                 .. " from uploads"
                 .. " left join packages on uploads.package = packages.id"
