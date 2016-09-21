@@ -184,6 +184,22 @@ sub process_cycle () {
             goto FAIL_UPLOAD;
         }
 
+        my $final_md5;
+        {
+            my $in;
+            if (!open $in, $final_file) {
+                $errstr = "cannot open $final_file for reading: $!\n";
+                warn $errstr;
+                goto FAIL_UPLOAD;
+            }
+
+            my $ctx = Digest::MD5->new;
+            $ctx->addfile($in);
+            #$ctx->add("foo");
+            $final_md5 = $ctx->hexdigest;
+            close $in;
+        }
+
         {
             my $final_subdir = File::Spec->catdir($final_dir, $account);
 
@@ -307,6 +323,7 @@ sub process_cycle () {
             licenses => $licenses,
             is_original => $is_orig,
             repo_link => $repo_link,
+            final_checksum => $final_md5,
             dep_packages => [],
             dep_versions => [],
             file => $path,

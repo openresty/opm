@@ -989,13 +989,19 @@ do
             end
             local licenses_v = "ARRAY[" .. tab_concat(licenses, ", ") .. "]"
 
+            local final_md5 = data.final_checksum
+            if not final_md5 then
+                return log_and_out_err(ctx, 400, "no final_checksum defined")
+            end
+
             sql = "update uploads set indexed = true"
                   .. ", updated_at = now(), authors = "
                   .. authors_v .. ", repo_link = "
                   .. quote_sql_str(repo_link) .. ", is_original = "
                   .. is_orig .. ", abstract = "
                   .. quote_sql_str(abstract) .. ", licenses = "
-                  .. licenses_v
+                  .. licenses_v .. ", final_checksum = "
+                  .. quote_sql_str(final_md5)
                   .. " where id = " .. quote_sql_str(id)
         end
 
