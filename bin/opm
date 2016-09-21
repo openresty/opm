@@ -578,7 +578,7 @@ github_account=
 github_token=
 
 # the opm central server for uploading openresty packages.
-upload_server_link=https://opm.openresty.org/api/upload
+upload_server_link=https://opm.openresty.org/api/pkg/upload
 _EOC_
         close $out;
 

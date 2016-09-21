@@ -78,7 +78,7 @@ sub main () {
 }
 
 sub process_cycle () {
-    my $data = http_req("/api/incoming", undef);
+    my $data = http_req("/api/pkg/incoming", undef);
     #warn Dumper($data);
 
     my $incoming_dir = $data->{incoming_dir} or die;
@@ -355,7 +355,7 @@ sub process_cycle () {
             file => $path,
         };
 
-        my $uri = "/api/processed";
+        my $uri = "/api/pkg/processed";
         my $res = http_req($uri, $json_xs->encode($meta));
 
         next;
@@ -387,7 +387,7 @@ FAIL_UPLOAD:
         }
 
         {
-            my $uri = "/api/processed";
+            my $uri = "/api/pkg/processed";
             my $meta = {
                 id => $id,
                 failed => 1,
