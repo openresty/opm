@@ -659,7 +659,7 @@ sub find_luajit {
                 File::Spec->catfile(
                     $FindBin::RealBin, "../luajit/bin/luajit"));
 
-    if (!-f $lj || !-x $lj) {
+    if (!defined $lj || !-f $lj || !-x $lj) {
         return 'luajit';
     }
 
