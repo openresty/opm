@@ -120,201 +120,15 @@ sub do_get {
 
     my $header_file = File::Spec->catfile($cache_dir, "last-resp-header");
 
+    my $ctx = {
+        download_url => $download_url,
+        cache_dir => $cache_dir,
+        header_file => $header_file,
+    };
+
     for my $dep (@$deps) {
-        my ($account, $name, $op, $ver) = @$dep;
-
-        my ($op_arg, $ver_arg);
-        if (defined $op) {
-            $op_arg = ($op eq '>=') ? 'ge' : 'eq';
-        } else {
-            $op_arg = '';
-        }
-
-        if (!$ver) {
-            $ver_arg = '';
-
-        } else {
-            $ver_arg = $ver;
-        }
-
-        if (!$account) {
-            if ($name =~ /^(?:luajit|openresty)/i) {
-                err "you cannot install $name via opm.\n";
-
-            } else {
-                # TODO do package search remotely
-                err "bad package name; you must specify an account prefix, ",
-                    "like \"openresty/lua-resty-lrucache\".\n"
-            }
-
-            next;
-        }
-
-        my $url = qq{$download_url/api/pkg/fetch?}
-                  . qq{account=$account\&name=$name\&op=$op_arg\&version=$ver_arg};
-        my $cmd = qq/curl -s -i -A '$UserAgent' '$url'/;
-        my $out = `$cmd`;
-        if ($? != 0) {
-            err "failed to run command \"$cmd\"\n";
-        }
-
-        if (!$out) {
-            err "no response received from server for URL \"$url\".\n";
-        }
-
-        my $expected_md5;
-
-        #warn "out: $out";
-
-        open my $in, "<", \$out or die $!;
-        my $status_line = <$in>;
-        if ($status_line !~ m{^ HTTP/\d+\.\d+ \s+ (\d+) \b }x) {
-            err "bad response status line received from server for URL \"$url\".\n";
-        }
-
-        my $status = $1;
-        #warn $status;
-        if ($status eq '404') {
-            my ($found_body);
-            my $body = '';
-            while (<$in>) {
-                if ($found_body) {
-                    $body .= $_;
-                    next;
-                }
-
-                if (/^\r?$/) {
-                    $found_body = 1;
-                    next;
-                }
-            }
-
-            $body =~ s/\n+//gs;
-
-            my $spec = $op && $ver ? " $op $ver" : "";
-            err "failed to find package $account/$name$spec: $body\n";
-        }
-
-        if ($status ne '302') {
-            err "unexpected server response status code for URL \"$url\": $status\n";
-        }
-
-        my ($found_body, $target, $dist_file);
-        while (<$in>) {
-            if (/^\r?$/) {
-                $found_body = 1;
-                last;
-            }
-
-            warn $_;
-
-            if (/^ X-File-Checksum \s* : \s* (\S+) /ix) {
-                $expected_md5 = $1;
-                $expected_md5 =~ s/-//g;
-                if ($expected_md5 !~ /^[a-f0-9]{32}$/) {
-                    err "bad file checksum received from server URL ",
-                        "\"$url\": $expected_md5\n";
-                }
-                next;
-            }
-
-            if (/^Location \s* : \s* (\S+) /xi) {
-                $target = $1;
-                if ($target !~ m{^/api/pkg/tarball/$account/($name-\S+?\.opm\.tar\.gz)$}) {
-                    err "bad 302 redirect target in the server response: $target\n";
-                }
-
-                $dist_file = $1;
-                last;
-            }
-        }
-
-        close $in;
-
-        if (!$target) {
-            err "found no Location header in server response: $out";
-        }
-
-        if (!defined $expected_md5) {
-            err "no X-File-Checksum response header received from server URL ",
-                "\"$url\".\n";
-        }
-
-        $url = $download_url . $target;
-
-        my $cache_subdir = File::Spec->catdir($cache_dir, $account);
-        if (!-d $cache_subdir) {
-            File::Path::make_path($cache_subdir);
-        }
-
-        my $dist_file_path = File::Spec->catfile($cache_subdir, $dist_file);
-
-        warn "* Downloading $url\n";
-        shell "curl", "-A", $UserAgent, "-o", $dist_file_path, "-D", $header_file, $url;
-
-        open $in, $header_file or
-            err "failed to open $header_file for reading: $!\n";
-
-        $status_line = <$in>;
-        if ($status_line !~ m{^ HTTP/\d+\.\d+ \s+ (\d+) \b }x) {
-            err "bad response status line received from server for URL \"$url\".\n";
-        }
-
-        $status = $1;
-        #warn $status;
-        if ($status ne '200') {
-            err "failed to fetch $dist_file: server returns bad status code $status.\n";
-        }
-
-        if (!-f $dist_file_path) {
-            err "$dist_file_path not found.\n";
-        }
-
-        my $cwd = cwd;
-        chdir $cache_subdir
-            or err "cannot chdir to $cache_subdir: $!\n";
-
-        my $actual_md5;
-        {
-            open my $in, $dist_file
-                or err "cannot open $dist_file for reading: $!\n";
-            my $ctx = Digest::MD5->new;
-            $ctx->addfile($in);
-            #$ctx->add("foo");
-            $actual_md5 = $ctx->hexdigest;
-            close $in;
-        }
-
-        if ($actual_md5 ne $expected_md5) {
-            err "File downloaded might be corrupted or truncated ",
-                "because the checksums do not match: ",
-                "$actual_md5 vs $expected_md5\n";
-        }
-
-        (my $dist_dir = $dist_file) =~ s/\.tar\.gz$//;
-
-        if (-d $dist_dir) {
-            shell "rm", "-rf", $dist_dir;
-        }
-
-        shell "tar", "-xzf", $dist_file;
-
-        if (!-d $dist_dir) {
-            err "the unpacked directory $dist_dir not found under $cache_subdir.\n";
-        }
-
-        chdir $dist_dir
-            or err "cannot chdir to $cache_subdir/$dist_dir: $!\n";
-
-        # read dist.ini
-
-        chdir $cwd
-            or err "cannot chdir to $cwd: $!\n";
-
-        close $in;
+        install_target($ctx, $dep);
     }
-
-    #print $out;
 }
 
 sub do_build {
@@ -1039,4 +853,216 @@ sub lock_hold_err {
 
     err "Found the lock file $file hold by another opm process",
         $pid ? "(PID $pid)" : "", ".\n";
+}
+
+sub install_target {
+    my ($ctx, $target_spec) = @_;
+    my ($account, $name, $op, $ver) = @$target_spec;
+
+    my ($op_arg, $ver_arg);
+    if (defined $op) {
+        $op_arg = ($op eq '>=') ? 'ge' : 'eq';
+    } else {
+        $op_arg = '';
+    }
+
+    if (!$ver) {
+        $ver_arg = '';
+
+    } else {
+        $ver_arg = $ver;
+    }
+
+    if (!$account) {
+        if ($name =~ /^(?:luajit|openresty)/i) {
+            err "you cannot install $name via opm.\n";
+
+        } else {
+            # TODO do package search remotely
+            err "bad package name; you must specify an account prefix, ",
+                "like \"openresty/lua-resty-lrucache\".\n"
+        }
+
+        next;
+    }
+
+    my $download_url = $ctx->{download_url};
+
+    my $url = qq{$download_url/api/pkg/fetch?}
+              . qq{account=$account\&name=$name\&op=$op_arg\&version=$ver_arg};
+
+    warn "* Fetching $url\n";
+
+    my $cmd = qq/curl -s -i -A '$UserAgent' '$url'/;
+    my $out = `$cmd`;
+    if ($? != 0) {
+        err "failed to run command \"$cmd\"\n";
+    }
+
+    if (!$out) {
+        err "no response received from server for URL \"$url\".\n";
+    }
+
+    my $expected_md5;
+
+    #warn "out: $out";
+
+    open my $in, "<", \$out or die $!;
+    my $status_line = <$in>;
+    if ($status_line !~ m{^ HTTP/\d+\.\d+ \s+ (\d+) \b }x) {
+        err "bad response status line received from server for URL \"$url\".\n";
+    }
+
+    my $status = $1;
+    #warn $status;
+    if ($status eq '404') {
+        my ($found_body);
+        my $body = '';
+        while (<$in>) {
+            if ($found_body) {
+                $body .= $_;
+                next;
+            }
+
+            if (/^\r?$/) {
+                $found_body = 1;
+                next;
+            }
+        }
+
+        $body =~ s/\n+//gs;
+
+        my $spec = $op && $ver ? " $op $ver" : "";
+        err "failed to find package $account/$name$spec: $body\n";
+    }
+
+    if ($status ne '302') {
+        err "unexpected server response status code for URL \"$url\": $status\n";
+    }
+
+    my ($found_body, $target, $dist_file);
+    while (<$in>) {
+        if (/^\r?$/) {
+            $found_body = 1;
+            last;
+        }
+
+        #warn $_;
+
+        if (/^ X-File-Checksum \s* : \s* (\S+) /ix) {
+            $expected_md5 = $1;
+            $expected_md5 =~ s/-//g;
+            if ($expected_md5 !~ /^[a-f0-9]{32}$/) {
+                err "bad file checksum received from server URL ",
+                    "\"$url\": $expected_md5\n";
+            }
+            next;
+        }
+
+        if (/^Location \s* : \s* (\S+) /xi) {
+            $target = $1;
+            if ($target !~ m{^/api/pkg/tarball/$account/($name-\S+?\.opm\.tar\.gz)$}) {
+                err "bad 302 redirect target in the server response: $target\n";
+            }
+
+            $dist_file = $1;
+            last;
+        }
+    }
+
+    close $in;
+
+    if (!$target) {
+        err "found no Location header in server response: $out";
+    }
+
+    if (!defined $expected_md5) {
+        err "no X-File-Checksum response header received from server URL ",
+            "\"$url\".\n";
+    }
+
+    $url = $download_url . $target;
+
+    my $cache_dir = $ctx->{cache_dir};
+
+    my $cache_subdir = File::Spec->catdir($cache_dir, $account);
+    if (!-d $cache_subdir) {
+        File::Path::make_path($cache_subdir);
+    }
+
+    my $dist_file_path = File::Spec->catfile($cache_subdir, $dist_file);
+
+    my $header_file = $ctx->{header_file};
+
+    warn "* Downloading $url\n";
+    shell "curl", "-A", $UserAgent, "-o", $dist_file_path, "-D", $header_file, $url;
+
+    open $in, $header_file or
+        err "failed to open $header_file for reading: $!\n";
+
+    $status_line = <$in>;
+    if ($status_line !~ m{^ HTTP/\d+\.\d+ \s+ (\d+) \b }x) {
+        err "bad response status line received from server for URL \"$url\".\n";
+    }
+
+    $status = $1;
+    #warn $status;
+    if ($status ne '200') {
+        err "failed to fetch $dist_file: server returns bad status code $status.\n";
+    }
+
+    if (!-f $dist_file_path) {
+        err "$dist_file_path not found.\n";
+    }
+
+    my $cwd = cwd;
+    chdir $cache_subdir
+        or err "cannot chdir to $cache_subdir: $!\n";
+
+    my $actual_md5;
+    {
+        open my $in, $dist_file
+            or err "cannot open $dist_file for reading: $!\n";
+        my $ctx = Digest::MD5->new;
+        $ctx->addfile($in);
+        #$ctx->add("foo");
+        $actual_md5 = $ctx->hexdigest;
+        close $in;
+    }
+
+    if ($actual_md5 ne $expected_md5) {
+        err "File downloaded might be corrupted or truncated ",
+            "because the checksums do not match: ",
+            "$actual_md5 vs $expected_md5\n";
+    }
+
+    (my $dist_dir = $dist_file) =~ s/\.tar\.gz$//;
+
+    if (-d $dist_dir) {
+        shell "rm", "-rf", $dist_dir;
+    }
+
+    shell "tar", "-xzf", $dist_file;
+
+    if (!-d $dist_dir) {
+        err "the unpacked directory $dist_dir not found under $cache_subdir.\n";
+    }
+
+    chdir $dist_dir
+        or err "cannot chdir to $cache_subdir/$dist_dir: $!\n";
+
+    # read dist.ini
+
+    my $ini_file = "dist.ini";
+    my $data = read_ini($ini_file);
+
+    my $default_sec = $data->{default};
+
+    my $version = $default_sec->{version}
+        or err "$dist_dir: no version found in $ini_file";
+
+    chdir $cwd
+        or err "cannot chdir to $cwd: $!\n";
+
+    close $in;
 }
