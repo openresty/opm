@@ -7,12 +7,12 @@ use warnings;
 
 use FindBin ();
 use File::Find ();
-use File::Path ();
-use File::Copy ();
+use File::Path qw( make_path );
 use File::Spec ();
 use Config ();
 use Cwd qw( realpath cwd );
 use Digest::MD5 ();
+use File::Copy qw( copy );
 #use Data::Dumper qw( Dumper );
 
 my $MAX_DEPS = 100;
@@ -113,17 +113,28 @@ sub do_get {
 
     my $cache_dir = File::Spec->catdir($ENV{HOME}, ".opm", "cache");
     if (!-d $cache_dir) {
-        File::Path::make_path($cache_dir);
+        make_path($cache_dir);
     }
 
     $download_url =~ s{/+$}{};
 
     my $header_file = File::Spec->catfile($cache_dir, "last-resp-header");
 
+    my $install_dir = find_sys_install_dir();
+    if (!defined $install_dir) {
+        err "cannot find OpenResty system installation directory.\n";
+    }
+
+    my $lualib_dir = File::Spec->catdir($install_dir, "lualib");
+    if (!-d $lualib_dir) {
+        err "cannot find $lualib_dir in your OpenResty installation tree.\n";
+    }
+
     my $ctx = {
         download_url => $download_url,
         cache_dir => $cache_dir,
         header_file => $header_file,
+        install_dir => $install_dir,
     };
 
     for my $dep (@$deps) {
@@ -221,7 +232,7 @@ sub do_build {
     }
 
     if (!$server_build) {
-        my $out = `curl -s -I $repo_link 2>&1`;
+        my $out = `curl -sS -I $repo_link 2>&1`;
         if ($out =~ m{^ HTTP/1\.\d \s+ (\d+) \b}ix) {
             my $status = $1;
             if ($status >= 400) {
@@ -394,7 +405,7 @@ sub do_build {
     }
 
     my $dst_lib_dir = File::Spec->catfile($root_dir, "lib");
-    File::Path::make_path($dst_lib_dir);
+    make_path($dst_lib_dir);
 
     if ($server_build) {
         my $restydoc_index = find_restydoc_index();
@@ -409,11 +420,11 @@ sub do_build {
         my $dst = File::Spec->catfile($dst_lib_dir, $name);
         (my $dir = $dst) =~ s{[^/]*$}{}g;
         if ($dir && !-d $dir) {
-            File::Path::make_path($dir);
+            make_path($dir);
         }
 
         #warn $dst;
-        File::Copy::copy($src, $dst)
+        copy($src, $dst)
             or err "failed to copy $src to $dst: $!\n";
     }
 
@@ -450,7 +461,7 @@ sub do_build {
 
     if (!$server_build) {
         my $dst_doc_dir = File::Spec->catfile($root_dir, "lib");
-        File::Path::make_path($dst_doc_dir);
+        make_path($dst_doc_dir);
 
         for my $mod (@module_docs) {
             my $fname = $mod->{fname};
@@ -458,11 +469,11 @@ sub do_build {
             my $dst = File::Spec->catfile($dst_doc_dir, $fname);
             (my $dir = $dst) =~ s{[^/]*$}{}g;
             if ($dir && !-d $dir) {
-                File::Path::make_path($dir);
+                make_path($dir);
             }
 
             #warn $dst;
-            File::Copy::copy($src, $dst)
+            copy($src, $dst)
                 or err "failed to copy $src to $dst: $!\n";
         }
     }
@@ -483,7 +494,7 @@ sub do_build {
                 }
 
                 my $dst = File::Spec->catfile($root_dir, "$basename.$ext");
-                File::Copy::copy($file, $dst)
+                copy($file, $dst)
                     or err "failed to copy $file to $dst: $!\n";
                 next;
             }
@@ -492,7 +503,7 @@ sub do_build {
                 my $new_file = uc $file;
                 my $dst = File::Spec->catfile($root_dir, $new_file);
 
-                File::Copy::copy($file, $dst)
+                copy($file, $dst)
                     or err "failed to copy $file to $dst: $!\n";
                 next;
             }
@@ -724,7 +735,7 @@ sub do_upload {
     # upload the tar ball to the package server with the github access token.
 
     # TODO we should migrate from curl to a Lua script via the resty utility.
-    shell("curl", "-i", "-A", "opm $Version ($Config::Config{archname}, perl $^V)",
+    shell("curl", "-sS", "-i", "-A", "opm $Version ($Config::Config{archname}, perl $^V)",
           "-H", "X-File: $TarBall", "-H", "X-File-Checksum: $md5sum",
           "-H", "X-Account: $account", "-H", "X-Token: $token",
           "-T", $TarBall,
@@ -745,15 +756,15 @@ sub find_luajit {
 
 sub find_restydoc_index {
     my $fname = "restydoc-index";
-    my $lj = realpath(
-                File::Spec->catfile(
-                    $FindBin::RealBin, $fname));
+    my $file = realpath(
+                    File::Spec->catfile(
+                        $FindBin::RealBin, $fname));
 
-    if (!-f $lj || !-x $lj) {
+    if (!defined $file || !-f $file || !-x $file) {
         return $fname;
     }
 
-    return $lj;
+    return $file;
 }
 
 sub create_stub_rc_file {
@@ -805,7 +816,12 @@ sub check_lock_file {
         err "no HOME system environment defined.\n";
     }
 
-    my $lockfile = File::Spec->catfile($ENV{HOME}, ".opm", "lock");
+    my $opmdir = File::Spec->catdir($ENV{HOME}, ".opm");
+    if (!-d $opmdir) {
+        make_path $opmdir;
+    }
+
+    my $lockfile = File::Spec->catfile($opmdir, "lock");
     if (-f $lockfile) {
         open my $in, $lockfile or
             lock_hold_err($lockfile);
@@ -893,7 +909,7 @@ sub install_target {
 
     warn "* Fetching $url\n";
 
-    my $cmd = qq/curl -s -i -A '$UserAgent' '$url'/;
+    my $cmd = qq/curl -sS -i -A '$UserAgent' '$url'/;
     my $out = `$cmd`;
     if ($? != 0) {
         err "failed to run command \"$cmd\"\n";
@@ -1059,10 +1075,94 @@ sub install_target {
     my $default_sec = $data->{default};
 
     my $version = $default_sec->{version}
-        or err "$dist_dir: no version found in $ini_file";
+        or err "$dist_dir: no version found in $ini_file\n";
+
+    if (!-d 'lib') {
+        err "no lib/ found in $dist_dir/.\n"
+    }
+
+    if (!-d 'pod') {
+        err "no pod/ found in $dist_dir/.\n"
+    }
+
+    my $restydoc_index = 'resty.index';
+    if (!-f $restydoc_index) {
+        err "no $restydoc_index file found in $dist_dir/.\n";
+    }
+
+    my @lua_files;
+    File::Find::find(sub {
+        return unless -f $_;
+        my $src_path = $File::Find::name;
+        (my $target_path = $src_path) =~ s{^lib/}{};
+        push @lua_files, [$src_path, $target_path],
+    },  'lib');
+
+    if (!@lua_files) {
+        err "no library files found in $dist_dir/.\n";
+    }
+
+    my @pod_files;
+    File::Find::find(sub {
+        return unless -f $_;
+        my $src_path = $File::Find::name;
+        (my $target_path = $src_path) =~ s{^lib/}{};
+        push @pod_files, [$src_path, $target_path],
+    },  'pod');
+
+    if (!@pod_files) {
+        err "no document files found in $dist_dir/.\n";
+    }
+
+    my $install_dir = $ctx->{install_dir} or die;
+
+    for my $spec (@lua_files) {
+        my ($src, $dst) = @$spec;
+
+        install_file($src, $dst, File::Spec->catfile($install_dir, "lualib"));
+    }
+
+    for my $spec (@pod_files) {
+        my ($src, $dst) = @$spec;
+
+        install_file($src, $dst, File::Spec->catfile($install_dir, "pod"));
+    }
 
     chdir $cwd
         or err "cannot chdir to $cwd: $!\n";
 
     close $in;
+}
+
+sub find_sys_install_dir {
+    return realpath(
+                File::Spec->catdir(
+                    $FindBin::RealBin, "..", "site"));
+}
+
+sub install_file {
+    my ($src, $dst, $install_dir) = @_;
+
+    my $dst_path = File::Spec->catfile($install_dir, $dst);
+
+    if (-f $dst_path) {
+        # FIXME maybe we should not override existing files by default?
+
+        unlink $dst_path
+            or err "destination file path $dst_path already exists and ",
+                   "cannot be removed: $!\n";
+    }
+
+    if (-d $dst_path) {
+        err "destination file path $dst_path already exists ",
+            "and is a directory.\n";
+    }
+
+    (my $dir = $dst_path) =~ s{(.*)/[^/]+$}{$1};
+
+    if (!-d $dir) {
+        make_path $dir;
+    }
+
+    copy($src, $dst_path) or err "failed to copy $src to $dst_path: $!\n";
 }
