@@ -1,14 +1,21 @@
 pidfile = $(abspath web/logs/nginx.pid)
 webpath = $(abspath web/)
 openresty = openresty
+opm = $(abspath bin/opm)
+opm_pkg_indexer = $(abspath util/opm-pkg-indexer.pl)
 
 .PHONY: test
-test: | reload
+test: | initdb reload
 	#./bin/opm build
-	-time ./bin/opm upload
+	#-time ./bin/opm upload
 	rm -rf /tmp/final /tmp/failed /tmp/original
 	mkdir -p /tmp/incoming /tmp/final /tmp/failed
-	PATH=$$PWD/bin:$$PATH time ./util/opm-pkg-indexer.pl
+	cd ../lua-resty-lrucache && $(opm) build
+	cd ../lua-resty-lrucache && $(opm) upload
+	cd ../lua-resty-core && $(opm) build
+	cd ../lua-resty-core && $(opm) upload
+	PATH=$$PWD/bin:$$PATH time $(opm_pkg_indexer)
+	$(opm) get openresty/lua-resty-lrucache
 
 .PHONY: run
 run:

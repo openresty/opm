@@ -152,7 +152,8 @@ sub do_get {
             next;
         }
 
-        my $url = qq{$download_url/api/pkg/fetch?account=$account\&name=$name\&op=$op_arg\&version=$ver_arg};
+        my $url = qq{$download_url/api/pkg/fetch?}
+                  . qq{account=$account\&name=$name\&op=$op_arg\&version=$ver_arg};
         my $cmd = qq/curl -s -i -A '$UserAgent' '$url'/;
         my $out = `$cmd`;
         if ($? != 0) {
