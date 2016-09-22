@@ -1047,4 +1047,128 @@ do
 end -- do
 
 
+do
+    local unescape_uri = ngx.unescape_uri
+    local pkg_exists
+    local bits = {}
+
+    function _M.do_pkg_exists()
+        local ctx = {}
+
+        local account = unescape_uri(ngx_var.arg_account)
+        if not account or account == "" then
+            return log_and_out_err(ctx, 400, "no account specified")
+        end
+
+        ctx.account = account
+
+        local pkg_name = unescape_uri(ngx_var.arg_name)
+        if not pkg_name or pkg_name == "" then
+            return log_and_out_err(ctx, 400, "no name specified")
+        end
+
+        local op = unescape_uri(ngx_var.arg_op)
+        local pkg_ver = unescape_uri(ngx_var.arg_verson)
+
+        local found_ver, err = pkg_exists(ctx, account, pkg_name, op, pkg_ver)
+        if not found_ver then
+            ngx.status = 404
+            say(err)
+            ngx.exit(404)
+        end
+
+        say(encode_json{found_version = found_ver})
+    end
+
+
+    function pkg_exists(ctx, account, pkg_name, op, pkg_ver)
+        local sql = "select id from packages where name = "
+                    .. quote_sql_str(pkg_name)
+        local rows = query_db(sql)
+        if #rows == 0 then
+            return nil, "the package name " .. pkg_name .. " never seen before"
+        end
+
+        local pkg_id = assert(rows[1].id)
+        local quoted_account = quote_sql_str(account)
+
+        local user_id, org_id
+
+        local sql = "select id from users where login = " .. quoted_account
+        rows = query_db(sql)
+
+        if #rows == 0 then
+            sql = "select id from orgs where login = " .. quoted_account
+            rows = query_db(sql)
+
+            if #rows == 0 then
+                return nil, "account name " .. account .. " not found"
+            end
+
+            org_id = assert(rows[1].id)
+
+        else
+            user_id = assert(rows[1].id)
+        end
+
+        tab_clear(bits)
+        local i = 0
+
+        i = i + 1
+        bits[i] = "select version_s from uploads where package = "
+
+        i = i + 1
+        bits[i] = pkg_id
+
+        if op and op ~= "" and pkg_ver and pkg_ver ~= "" then
+            if op == "eq" then
+                i = i + 1
+                bits[i] = " and version_s = "
+
+                i = i + 1
+                bits[i] = quote_sql_str(pkg_ver)
+
+            elseif op == "ge" then
+                i = i + 1
+                bits[i] = " and version_v >= "
+
+                i = i + 1
+                bits[i] = ver2pg_array(pkg_ver)
+
+            else
+                return nil, "bad op argument value: " .. op
+            end
+        end
+
+        if user_id then
+            i = i + 1
+            bits[i] = " and org_account is null and uploader = "
+
+            i = i + 1
+            bits[i] = user_id
+
+        else
+            i = i + 1
+            bits[i] = " and org_account = "
+
+            i = i + 1
+            bits[i] = org_id
+        end
+
+        i = i + 1
+        bits[i] = " and indexed = true limit 1"
+
+        sql = tab_concat(bits)
+        rows = query_db(sql)
+
+        if #rows == 0 then
+            return nil, "package " .. pkg_name .. op .. pkg_ver
+                        .. " not found under account " .. account
+        end
+
+        return assert(rows[1].version_s)
+    end
+end  -- do
+
+
 return _M

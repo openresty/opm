@@ -15,7 +15,7 @@ use File::Copy qw( copy );
 use File::Path qw( make_path );
 use Digest::MD5 ();
 
-sub http_req ($$);
+sub http_req ($$$);
 sub main ();
 sub process_cycle ();
 sub gen_backup_file_prefix ();
@@ -47,6 +47,7 @@ $req->header(Host => "opm.openresty.org");
 
 my $MAX_FAILS = 100;
 my $MAX_HTTP_TRIES = 10;
+my $MAX_DEPS = 100;
 
 main();
 
@@ -78,8 +79,12 @@ sub main () {
 }
 
 sub process_cycle () {
-    my $data = http_req("/api/pkg/incoming", undef);
+    my ($data, $err) = http_req("/api/pkg/incoming", undef, undef);
     #warn Dumper($data);
+
+    if ($err) {
+        return;
+    }
 
     my $incoming_dir = $data->{incoming_dir} or die;
     my $final_dir = $data->{final_dir} or die;
@@ -288,22 +293,60 @@ sub process_cycle () {
         my $requires = $default_sec->{requires};
         my (@dep_pkgs, @dep_ops, @dep_vers);
         if ($requires) {
-            my ($deps, $err) = parse_deps($requires);
+            my ($deps, $err) = parse_deps($requires, $inifile);
             if ($err) {
                 $errstr = "$inifile: requires: $err";
                 warn $errstr;
                 goto FAIL_UPLOAD;
             }
 
-            for my $dep (@$deps) {
-                my ($name, $op, $ver) = @$dep;
+            my $ndeps = @$deps;
+            if ($ndeps > $MAX_DEPS) {
+                $errstr = "$inifile: too many dependencies: $ndeps";
+                goto FAIL_UPLOAD;
+            }
 
-                if (!$op && $ver) {
-                    $op = ">=";
+            for my $dep (@$deps) {
+                my ($account, $name, $op, $ver) = @$dep;
+
+                my ($op_arg, $ver_arg);
+
+                if ($op && $ver) {
+                    if ($op eq '>=') {
+                        $op_arg = "ge";
+
+                    } elsif ($op eq '=') {
+                        $op_arg = "eq";
+
+                    } else {
+                        $errstr = "bad dependency operator: $op";
+                        warn $errstr;
+                        goto FAIL_UPLOAD;
+                    }
+
+                } else {
+                    $op_arg = "";
+                    $ver_arg = "";
+                }
+
+                die unless !defined $account || $account =~ /^[-\w]+$/;
+                die unless $name =~ /^[-\w]+$/;
+
+                if ($account) {
+                    my $uri = "/api/pkg/exists?account=$account\&name=$name\&op=$op_arg&version=$ver";
+                    my ($res, $err) = http_req($uri, undef, { 404 => 1 });
+
+                    if (!$res) {
+                        $errstr = "package dependency check failed on \"$name $op $ver\": $err";
+                        warn $errstr;
+                        goto FAIL_UPLOAD;
+                    }
+
+                    #warn $res->{found_version};
                 }
 
                 push @dep_pkgs, $name;
-                push @dep_ops, $op;
+                push @dep_ops, $op || undef;
                 push @dep_vers, $ver || undef;
             }
         }
@@ -355,8 +398,13 @@ sub process_cycle () {
             file => $path,
         };
 
-        my $uri = "/api/pkg/processed";
-        my $res = http_req($uri, $json_xs->encode($meta));
+        {
+            my $uri = "/api/pkg/processed";
+            my ($res, $err) = http_req($uri, $json_xs->encode($meta), undef);
+            if (!defined $res) {
+                goto FAIL_UPLOAD;
+            }
+        }
 
         next;
 
@@ -394,9 +442,10 @@ FAIL_UPLOAD:
                 reason => $errstr,
                 file => $path,
             };
-            my $res = http_req($uri, $json_xs->encode($meta));
+
+            my ($res, $err) = http_req($uri, $json_xs->encode($meta), undef);
         }
-    };
+    }
 }
 
 sub gen_backup_file_prefix () {
@@ -406,8 +455,10 @@ sub gen_backup_file_prefix () {
                    $hour, $min, $sec);
 }
 
-sub http_req ($$) {
-    my ($uri, $req_body) = @_;
+sub http_req ($$$) {
+    my ($uri, $req_body, $no_retry_statuses) = @_;
+
+    my $err;
 
     for my $i (1 .. $MAX_HTTP_TRIES) {
         # send request
@@ -423,8 +474,19 @@ sub http_req ($$) {
 
         # check the outcome
         if (!$resp->is_success) {
-            warn "request to $uri failed: ", $resp->status_line, ": ",
-                 $resp->decoded_content;
+            $err = "request to $uri failed: " . $resp->status_line . ": "
+                   . ($resp->decoded_content || "");
+
+            my $status = $resp->code;
+            if ($status == 400
+                || (defined $no_retry_statuses
+                    && $no_retry_statuses->{$status}))
+            {
+                warn $err;
+                return undef, $err;
+            }
+
+            warn "attempt $i of $MAX_HTTP_TRIES: $err";
 
             sleep $i * 0.001;
             next;
@@ -444,6 +506,8 @@ sub http_req ($$) {
 
         return $data;
     }
+
+    return undef, $err
 }
 
 sub shell (@) {
@@ -511,14 +575,41 @@ sub read_ini ($) {
 
 sub parse_deps {
     my ($line, $file) = @_;
+
     my @items = split /\s*,\s*/, $line;
     my @parsed;
     for my $item (@items) {
-        if ($item =~ /^[-\w]+$/) {
-            push @parsed, [$item];
+        if ($item =~ m{^ ([-/\w]+) $}x) {
+            my $full_name = $item;
 
-        } elsif ($item =~ /^ ([-\w]+) \s* (\S+) \s* (\S+) $/x) {
-            my ($name, $op, $ver) = ($1, $2, $3);
+            my ($account, $name);
+
+            if ($full_name =~ m{^ ([-\w]+) / ([-\w]+)  }x) {
+                ($account, $name) = ($1, $2);
+
+            } elsif ($full_name eq 'openresty' || $full_name eq 'luajit') {
+                $name = $full_name;
+
+            } else {
+                return undef, "$file: bad dependency name: $full_name";
+            }
+
+            push @parsed, [$account, $name];
+
+        } elsif ($item =~ m{^ ([-/\w]+) \s* (\S+) \s* (\S+) $}x) {
+            my ($full_name, $op, $ver) = ($1, $2, $3);
+
+            my ($account, $name);
+
+            if ($full_name =~ m{^ ([-\w]+) / ([-\w]+)  }x) {
+                ($account, $name) = ($1, $2);
+
+            } elsif ($full_name eq 'openresty' || $full_name eq 'luajit') {
+                $name = $full_name;
+
+            } else {
+                return undef, "$file: bad dependency name: $full_name";
+            }
 
             if ($op !~ /^ (?: >= | = ) $/x) {
                 return undef, "$file: bad dependency version comparison"
@@ -530,13 +621,13 @@ sub parse_deps {
                               . " specification in \"$item\": $ver";
             }
 
-            push @parsed, [$name, $op, $ver];
+            push @parsed, [$account, $name, $op, $ver];
 
         } else {
             return undef, "$file: bad dependency specification: $item";
         }
     }
 
-    @parsed = sort { $a->[0] cmp $b->[0] } @parsed;
+    @parsed = sort { $a->[1] cmp $b->[1] } @parsed;
     return \@parsed;
 }

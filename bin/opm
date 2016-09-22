@@ -17,6 +17,7 @@ use Digest::MD5 ();
 
 sub shell (@);
 
+my $MAX_DEPS = 100;
 my $Version = '0.0.1';
 
 my ($TarBall, $RepoLink, $RepoLinkUser, @Licenses, $LuaJIT);
@@ -197,6 +198,10 @@ sub do_build {
 
     if ($requires) {
         $deps = parse_deps($requires, $dist_file);
+        my $ndeps = @$deps;
+        if ($ndeps >= $MAX_DEPS) {
+            err "$dist_file: requires: too many dependencies: $ndeps\n";
+        }
     }
 
     # TODO check validity of the dependences.
@@ -524,31 +529,60 @@ sub read_ini {
 
 sub parse_deps {
     my ($line, $file) = @_;
+
     my @items = split /\s*,\s*/, $line;
     my @parsed;
     for my $item (@items) {
-        if ($item =~ /^[-\w]+$/) {
-            push @parsed, [$item];
+        if ($item =~ m{^ ([-/\w]+) $}x) {
+            my $full_name = $item;
 
-        } elsif ($item =~ /^ ([-\w]+) \s* (\S+) \s* (\S+) $/x) {
-            my ($name, $op, $ver) = ($1, $2, $3);
+            my ($account, $name);
+
+            if ($full_name =~ m{^ ([-\w]+) / ([-\w]+)  }x) {
+                ($account, $name) = ($1, $2);
+
+            } elsif ($full_name eq 'openresty' || $full_name eq 'luajit') {
+                $name = $full_name;
+
+            } else {
+                err "$file: bad dependency name: $full_name\n";
+            }
+
+            push @parsed, [$account, $name];
+
+        } elsif ($item =~ m{^ ([-/\w]+) \s* (\S+) \s* (\S+) $}x) {
+            my ($full_name, $op, $ver) = ($1, $2, $3);
+
+            my ($account, $name);
+
+            if ($full_name =~ m{^ ([-\w]+) / ([-\w]+)  }x) {
+                ($account, $name) = ($1, $2);
+
+            } elsif ($full_name eq 'openresty' || $full_name eq 'luajit') {
+                $name = $full_name;
+
+            } else {
+                err "$file: bad dependency name: $full_name\n";
+            }
 
             if ($op !~ /^ (?: >= | = ) $/x) {
-                err "$file: bad dependency version comparison operator in \"$item\": $op\n";
+                err "$file: bad dependency version comparison",
+                    " operator in \"$item\": $op\n";
             }
 
             if ($ver !~ /\d/ || $ver =~ /[^-.\w]/) {
-                err "$file: bad version number in dependency specification in \"$item\": $ver\n";
+                err "$file: bad version number in dependency",
+                    " specification in \"$item\": $ver\n";
             }
 
-            push @parsed, [$name, $op, $ver];
+            push @parsed, [$account, $name, $op, $ver];
 
         } else {
-            err "$file: bad dependency specification: $item";
+            err "$file: bad dependency specification: $item\n";
         }
     }
 
-    @parsed = sort { $a->[0] cmp $b->[0] } @parsed;
+    @parsed = sort { $a->[1] cmp $b->[1] } @parsed;
     return \@parsed;
 }
 
