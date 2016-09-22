@@ -943,6 +943,9 @@ sub get_rc_file {
 }
 
 sub check_lock_file {
+    # TODO when we support the --cwd option, we should use a lock file in the
+    # current working directory instead, like ./resty_modules/lock
+
     if (!$ENV{HOME}) {
         err "no HOME system environment defined.\n";
     }
