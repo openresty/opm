@@ -784,7 +784,7 @@ do
     function query_db(query)
         local pg = pgmoon.new(db_spec)
 
-        -- print("sql query: ", query)
+        -- ngx.log(ngx.WARN, "sql query: ", query)
 
         local ok, err
 
@@ -1068,7 +1068,7 @@ do
         end
 
         local op = unescape_uri(ngx_var.arg_op)
-        local pkg_ver = unescape_uri(ngx_var.arg_verson)
+        local pkg_ver = unescape_uri(ngx_var.arg_version)
 
         local found_ver, err = pkg_exists(ctx, account, pkg_name, op, pkg_ver)
         if not found_ver then
@@ -1120,6 +1120,8 @@ do
         i = i + 1
         bits[i] = pkg_id
 
+        -- ngx.log(ngx.WARN, "op = ", op, ", pkg ver = ", pkg_ver)
+
         if op and op ~= "" and pkg_ver and pkg_ver ~= "" then
             if op == "eq" then
                 i = i + 1
@@ -1162,7 +1164,8 @@ do
         rows = query_db(sql)
 
         if #rows == 0 then
-            return nil, "package " .. pkg_name .. op .. pkg_ver
+            return nil, "package " .. pkg_name
+                        .. (op == 'ge' and '>=' or '=') .. pkg_ver
                         .. " not found under account " .. account
         end
 
