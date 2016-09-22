@@ -15,8 +15,6 @@ use Cwd qw( realpath cwd );
 use Digest::MD5 ();
 #use Data::Dumper qw( Dumper );
 
-sub shell (@);
-
 my $MAX_DEPS = 100;
 my $Version = '0.0.1';
 
@@ -164,6 +162,10 @@ sub do_get {
             err "no response received from server for URL \"$url\".\n";
         }
 
+        my $expected_md5;
+
+        #warn "out: $out";
+
         open my $in, "<", \$out or die $!;
         my $status_line = <$in>;
         if ($status_line !~ m{^ HTTP/\d+\.\d+ \s+ (\d+) \b }x) {
@@ -173,7 +175,7 @@ sub do_get {
         my $status = $1;
         #warn $status;
         if ($status eq '404') {
-            my $found_body;
+            my ($found_body);
             my $body = '';
             while (<$in>) {
                 if ($found_body) {
@@ -204,6 +206,18 @@ sub do_get {
                 last;
             }
 
+            warn $_;
+
+            if (/^ X-File-Checksum \s* : \s* (\S+) /ix) {
+                $expected_md5 = $1;
+                $expected_md5 =~ s/-//g;
+                if ($expected_md5 !~ /^[a-f0-9]{32}$/) {
+                    err "bad file checksum received from server URL ",
+                        "\"$url\": $expected_md5\n";
+                }
+                next;
+            }
+
             if (/^Location \s* : \s* (\S+) /xi) {
                 $target = $1;
                 if ($target !~ m{^/api/pkg/tarball/$account/($name-\S+?\.opm\.tar\.gz)$}) {
@@ -215,11 +229,16 @@ sub do_get {
             }
         }
 
+        close $in;
+
         if (!$target) {
             err "found no Location header in server response: $out";
         }
 
-        close $in;
+        if (!defined $expected_md5) {
+            err "no X-File-Checksum response header received from server URL ",
+                "\"$url\".\n";
+        }
 
         $url = $download_url . $target;
 
@@ -254,6 +273,23 @@ sub do_get {
         my $cwd = cwd;
         chdir $cache_subdir
             or err "cannot chdir to $cache_subdir: $!\n";
+
+        my $actual_md5;
+        {
+            open my $in, $dist_file
+                or err "cannot open $dist_file for reading: $!\n";
+            my $ctx = Digest::MD5->new;
+            $ctx->addfile($in);
+            #$ctx->add("foo");
+            $actual_md5 = $ctx->hexdigest;
+            close $in;
+        }
+
+        if ($actual_md5 ne $expected_md5) {
+            err "File downloaded might be corrupted or truncated ",
+                "because the checksums do not match: ",
+                "$actual_md5 vs $expected_md5\n";
+        }
 
         shell "tar", "-xzf", $dist_file;
 

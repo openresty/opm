@@ -1052,7 +1052,7 @@ do
     local pkg_fetch
     local bits = {}
     local req_set_uri = ngx.req.set_uri
-    local ngx_exec = ngx.exec
+    local ngx_redirect = ngx.redirect
 
     function _M.do_pkg_exists()
         local ctx = {}
@@ -1072,7 +1072,8 @@ do
         local op = unescape_uri(ngx_var.arg_op)
         local pkg_ver = unescape_uri(ngx_var.arg_version)
 
-        local found_ver, err = pkg_fetch(ctx, account, pkg_name, op, pkg_ver)
+        local found_ver, _, err = pkg_fetch(ctx, account, pkg_name, op,
+                                            pkg_ver)
         if not found_ver then
             ngx.status = 404
             say(err)
@@ -1101,16 +1102,25 @@ do
         local op = unescape_uri(ngx_var.arg_op)
         local pkg_ver = unescape_uri(ngx_var.arg_version)
 
-        local found_ver, err = pkg_fetch(ctx, account, pkg_name, op,
-                                          pkg_ver, true --[[ latest ]])
+        local found_ver, md5, err = pkg_fetch(ctx, account, pkg_name, op,
+                                              pkg_ver, true --[[ latest ]])
         if not found_ver then
             ngx.status = 404
             say(err)
             ngx.exit(404)
         end
 
+        if not md5 then
+            return log_and_out_err(ctx, 500, "MD5 checksum not found")
+        end
+
+        ngx.header["X-File-Checksum"] = md5
+
+        -- log_err(ctx, "md5: ", encode_json(md5))
+
         local fname = pkg_name .. "-" .. found_ver .. ".opm.tar.gz"
-        ngx.redirect("/api/pkg/tarball/" .. account .. "/" .. fname, 302)
+
+        ngx_redirect("/api/pkg/tarball/" .. account .. "/" .. fname, 302)
     end
 
 
@@ -1119,7 +1129,8 @@ do
                     .. quote_sql_str(pkg_name)
         local rows = query_db(sql)
         if #rows == 0 then
-            return nil, "the package name " .. pkg_name .. " never seen before"
+            return nil, nil,
+                   "the package name " .. pkg_name .. " never seen before"
         end
 
         local pkg_id = assert(rows[1].id)
@@ -1135,7 +1146,7 @@ do
             rows = query_db(sql)
 
             if #rows == 0 then
-                return nil, "account name " .. account .. " not found"
+                return nil, nil, "account name " .. account .. " not found"
             end
 
             org_id = assert(rows[1].id)
@@ -1148,7 +1159,15 @@ do
         local i = 0
 
         i = i + 1
-        bits[i] = "select version_s from uploads where indexed = true"
+        bits[i] = "select version_s"
+
+        if latest then
+            i = i + 1
+            bits[i] = ", final_checksum"
+        end
+
+        i = i + 1
+        bits[i] = " from uploads where indexed = true"
                   .. " and package = "
 
         i = i + 1
@@ -1172,7 +1191,7 @@ do
                 bits[i] = ver2pg_array(pkg_ver)
 
             else
-                return nil, "bad op argument value: " .. op
+                return nil, nil, "bad op argument value: " .. op
             end
         end
 
@@ -1203,12 +1222,13 @@ do
         rows = query_db(sql)
 
         if #rows == 0 then
-            return nil, "package " .. pkg_name
-                        .. (op == 'ge' and '>=' or '=') .. pkg_ver
-                        .. " not found under account " .. account
+            return nil, nil, "package " .. pkg_name
+                             .. (op == 'ge' and '>=' or '=') .. pkg_ver
+                             .. " not found under account " .. account
         end
 
-        return assert(rows[1].version_s)
+        return assert(rows[1].version_s),
+               latest and assert(rows[1].final_checksum) or nil
     end
 end  -- do
 
