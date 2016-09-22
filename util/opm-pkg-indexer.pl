@@ -333,7 +333,7 @@ sub process_cycle () {
                 die unless $name =~ /^[-\w]+$/;
 
                 if ($account) {
-                    my $uri = "/api/pkg/exists?account=$account\&name=$name\&op=$op_arg&version=$ver";
+                    my $uri = "/api/pkg/exists?account=$account\&name=$name\&op=$op_arg&version=$ver_arg";
                     my ($res, $err) = http_req($uri, undef, { 404 => 1 });
 
                     if (!$res) {
@@ -345,7 +345,7 @@ sub process_cycle () {
                     #warn $res->{found_version};
                 }
 
-                push @dep_pkgs, $name;
+                push @dep_pkgs, $account ? "$account/$name" : $name;
                 push @dep_ops, $op || undef;
                 push @dep_vers, $ver || undef;
             }

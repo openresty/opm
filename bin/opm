@@ -11,7 +11,7 @@ use File::Path ();
 use File::Copy ();
 use File::Spec ();
 use Config ();
-use Cwd qw( realpath );
+use Cwd qw( realpath cwd );
 use Digest::MD5 ();
 #use Data::Dumper qw( Dumper );
 
@@ -20,7 +20,9 @@ sub shell (@);
 my $MAX_DEPS = 100;
 my $Version = '0.0.1';
 
-my ($TarBall, $RepoLink, $RepoLinkUser, @Licenses, $LuaJIT);
+my ($TarBall, $RepoLink, $RepoLinkUser, @Licenses, $LuaJIT, $LockFile);
+
+my $UserAgent = "opm $Version ($Config::Config{archname}, perl $^V)";
 
 my %Licenses = (
     apache2 => 'Apache License 2.0',
@@ -45,7 +47,7 @@ sub err {
 }
 
 sub shell (@) {
-    warn join(" ", map { /\s/ ? "'$_'" : $_ } @_), "\n";
+    #warn join(" ", map { /["?&;|\s]/ ? "'$_'" : $_ } @_), "\n";
 
     if (system(@_) != 0) {
         err "failed to run command\n";
@@ -62,7 +64,9 @@ if ($cmd eq '-v') {
 
 for ($cmd) {
     if ($_ eq 'get') {
-        do_get();
+        check_lock_file();
+
+        do_get(@ARGV);
 
     } elsif ($_ eq 'build') {
         do_build();
@@ -71,12 +75,205 @@ for ($cmd) {
         do_build(1);
 
     } elsif ($_ eq 'upload') {
+        check_lock_file();
+
         do_build();
         do_upload();
 
     } else {
         err "unknown command: $cmd\n";
     }
+}
+
+END {
+    if (defined $LockFile) {
+        unlink $LockFile
+            or err "failed to remove the lock file $LockFile: $!\n";
+
+        undef $LockFile;
+    }
+}
+
+sub do_get {
+    my $deps = parse_deps(\@_, "(comand-line argument)");
+
+    #warn Dumper($deps);
+
+    my ($rcfile, $data) = get_rc_file();
+
+    my $default_sec = delete $data->{default};
+
+    my $download_url = delete $default_sec->{download_server};
+    if (!$download_url) {
+        err "$rcfile: no download_server specified.\n";
+    }
+
+    if ($download_url !~ m{^https?://}) {
+        err "$rcfile: the value of download_server must be ",
+            "led by https:// or http://.\n";
+    }
+
+    my $cache_dir = File::Spec->catdir($ENV{HOME}, ".opm", "cache");
+    if (!-d $cache_dir) {
+        File::Path::make_path($cache_dir);
+    }
+
+    $download_url =~ s{/+$}{};
+
+    my $header_file = File::Spec->catfile($cache_dir, "last-resp-header");
+
+    for my $dep (@$deps) {
+        my ($account, $name, $op, $ver) = @$dep;
+
+        my ($op_arg, $ver_arg);
+        if (defined $op) {
+            $op_arg = ($op eq '>=') ? 'ge' : 'eq';
+        } else {
+            $op_arg = '';
+        }
+
+        if (!$ver) {
+            $ver_arg = '';
+
+        } else {
+            $ver_arg = $ver;
+        }
+
+        if (!$account) {
+            if ($name =~ /^(?:luajit|openresty)/i) {
+                err "you cannot install $name via opm.\n";
+
+            } else {
+                # TODO do package search remotely
+                err "bad package name; you must specify an account prefix, ",
+                    "like \"openresty/lua-resty-lrucache\".\n"
+            }
+
+            next;
+        }
+
+        my $url = qq{$download_url/api/pkg/fetch?account=$account\&name=$name\&op=$op_arg\&version=$ver_arg};
+        my $cmd = qq/curl -s -i -A '$UserAgent' '$url'/;
+        my $out = `$cmd`;
+        if ($? != 0) {
+            err "failed to run command \"$cmd\"\n";
+        }
+
+        if (!$out) {
+            err "no response received from server for URL \"$url\".\n";
+        }
+
+        open my $in, "<", \$out or die $!;
+        my $status_line = <$in>;
+        if ($status_line !~ m{^ HTTP/\d+\.\d+ \s+ (\d+) \b }x) {
+            err "bad response status line received from server for URL \"$url\".\n";
+        }
+
+        my $status = $1;
+        #warn $status;
+        if ($status eq '404') {
+            my $found_body;
+            my $body = '';
+            while (<$in>) {
+                if ($found_body) {
+                    $body .= $_;
+                    next;
+                }
+
+                if (/^\r?$/) {
+                    $found_body = 1;
+                    next;
+                }
+            }
+
+            $body =~ s/\n+//gs;
+
+            my $spec = $op && $ver ? " $op $ver" : "";
+            err "failed to find package $account/$name$spec: $body\n";
+        }
+
+        if ($status ne '302') {
+            err "unexpected server response status code for URL \"$url\": $status\n";
+        }
+
+        my ($found_body, $target, $dist_file);
+        while (<$in>) {
+            if (/^\r?$/) {
+                $found_body = 1;
+                last;
+            }
+
+            if (/^Location \s* : \s* (\S+) /xi) {
+                $target = $1;
+                if ($target !~ m{^/api/pkg/tarball/$account/($name-\S+?\.opm\.tar\.gz)$}) {
+                    err "bad 302 redirect target in the server response: $target\n";
+                }
+
+                $dist_file = $1;
+                last;
+            }
+        }
+
+        if (!$target) {
+            err "found no Location header in server response: $out";
+        }
+
+        close $in;
+
+        $url = $download_url . $target;
+
+        my $cache_subdir = File::Spec->catdir($cache_dir, $account);
+        if (!-d $cache_subdir) {
+            File::Path::make_path($cache_subdir);
+        }
+
+        my $dist_file_path = File::Spec->catfile($cache_subdir, $dist_file);
+
+        warn "* Downloading $url\n";
+        shell "curl", "-A", $UserAgent, "-o", $dist_file_path, "-D", $header_file, $url;
+
+        open $in, $header_file or
+            err "failed to open $header_file for reading: $!\n";
+
+        $status_line = <$in>;
+        if ($status_line !~ m{^ HTTP/\d+\.\d+ \s+ (\d+) \b }x) {
+            err "bad response status line received from server for URL \"$url\".\n";
+        }
+
+        $status = $1;
+        #warn $status;
+        if ($status ne '200') {
+            err "failed to fetch $dist_file: server returns bad status code $status.\n";
+        }
+
+        if (!-f $dist_file_path) {
+            err "$dist_file_path not found.\n";
+        }
+
+        my $cwd = cwd;
+        chdir $cache_subdir
+            or err "cannot chdir to $cache_subdir: $!\n";
+
+        shell "tar", "-xzf", $dist_file;
+
+        (my $dist_dir = $dist_file) =~ s/\.tar\.gz$//;
+
+        if (!-d $dist_dir) {
+            err "the unpacked directory $dist_dir not found under $cache_subdir.\n";
+        }
+
+        chdir $dist_dir
+            or err "cannot chdir to $cache_subdir/$dist_dir: $!\n";
+
+        # read dist.ini
+
+        chdir $cwd
+            or err "cannot chdir to $cwd: $!\n";
+
+        close $in;
+    }
+
+    #print $out;
 }
 
 sub do_build {
@@ -530,7 +727,14 @@ sub read_ini {
 sub parse_deps {
     my ($line, $file) = @_;
 
-    my @items = split /\s*,\s*/, $line;
+    my @items;
+    if (ref $line) {
+        @items = @$line;
+
+    } else {
+        @items = split /\s*,\s*/, $line;
+    }
+
     my @parsed;
     for my $item (@items) {
         if ($item =~ m{^ ([-/\w]+) $}x) {
@@ -592,35 +796,7 @@ sub do_upload {
         err "uploading proprietary code is prohibited.\n";
     }
 
-    my $home = $ENV{HOME};
-    if (!$home) {
-        err "environment HOME not defined.\n";
-    }
-
-    my $rcfile = File::Spec->catfile($home, ".opmrc");
-    if (!-f $rcfile) {
-        # create a stub
-        open my $out, ">$rcfile"
-            or err "cannot open $rcfile for writing: $!\n";
-        print $out <<_EOC_;
-# your github account name (either your github user name or github organization that you owns)
-github_account=
-
-# you can generate a github personal access token from the web UI: https://github.com/settings/tokens
-# IMPORTANT! you are required to assign the scopes "user:email" and "read:org" to your github token.
-# you should NOT assign any other scopes to your token due to security considerations.
-github_token=
-
-# the opm central server for uploading openresty packages.
-upload_server_link=https://opm.openresty.org/api/pkg/upload
-_EOC_
-        close $out;
-
-        chmod 0600, $rcfile
-            or err "$rcfile: failed to chmod to 0600: $!\n";
-    }
-
-    my $data = read_ini($rcfile);
+    my ($rcfile, $data) = get_rc_file();
 
     my $default_sec = delete $data->{default};
 
@@ -647,13 +823,25 @@ _EOC_
         err "$rcfile: bad \"github_token\" value: $token\n";
     }
 
-    my $upload_url = delete $default_sec->{upload_server_link};
+    my $upload_url = delete $default_sec->{upload_server};
     if (!$upload_url) {
-        err "$rcfile: no upload_server_link specified.\n";
+        err "$rcfile: no upload_server specified.\n";
     }
 
     if ($upload_url !~ m{^https?://}) {
-        err "$rcfile: the value of upload_server_link must be ",
+        err "$rcfile: the value of upload_server must be ",
+            "led by https:// or http://.\n";
+    }
+
+    $upload_url =~ s{/+$}{};
+
+    my $download_url = delete $default_sec->{download_server};
+    if (!$download_url) {
+        err "$rcfile: no download_server specified.\n";
+    }
+
+    if ($download_url !~ m{^https?://}) {
+        err "$rcfile: the value of download_server must be ",
             "led by https:// or http://.\n";
     }
 
@@ -685,7 +873,7 @@ _EOC_
           "-H", "X-File: $TarBall", "-H", "X-File-Checksum: $md5sum",
           "-H", "X-Account: $account", "-H", "X-Token: $token",
           "-T", $TarBall,
-          $upload_url);
+          "$upload_url/api/pkg/upload");
 }
 
 sub find_luajit {
@@ -711,4 +899,100 @@ sub find_restydoc_index {
     }
 
     return $lj;
+}
+
+sub create_stub_rc_file {
+    my $rcfile = shift;
+
+    # create a stub
+    open my $out, ">$rcfile"
+        or err "cannot open $rcfile for writing: $!\n";
+    print $out <<_EOC_;
+# your github account name (either your github user name or github organization that you owns)
+github_account=
+
+# you can generate a github personal access token from the web UI: https://github.com/settings/tokens
+# IMPORTANT! you are required to assign the scopes "user:email" and "read:org" to your github token.
+# you should NOT assign any other scopes to your token due to security considerations.
+github_token=
+
+# the opm central server for uploading openresty packages.
+upload_server=https://opm.openresty.org
+
+# the opm server for downloading openresty packages.
+download_server=https://opm.openresty.org
+_EOC_
+    close $out;
+
+    chmod 0600, $rcfile
+        or err "$rcfile: failed to chmod to 0600: $!\n";
+}
+
+sub get_rc_file {
+    my $home = $ENV{HOME};
+    if (!$home) {
+        err "environment HOME not defined.\n";
+    }
+
+    my $rcfile = File::Spec->catfile($home, ".opmrc");
+    if (!-f $rcfile) {
+        create_stub_rc_file($rcfile);
+    }
+
+    return ($rcfile, read_ini($rcfile));
+}
+
+sub check_lock_file {
+    if (!$ENV{HOME}) {
+        err "no HOME system environment defined.\n";
+    }
+
+    my $lockfile = File::Spec->catfile($ENV{HOME}, ".opm", "lock");
+    if (-f $lockfile) {
+        open my $in, $lockfile or
+            lock_hold_err($lockfile);
+
+        my $pid = <$in>;
+        close $in;
+
+        if (!$pid) {
+            lock_hold_err($lockfile);
+
+        } else {
+            if (!kill 0, $pid) {
+                my $err = $!;
+                if ($err =~ /No such process/i) {
+                    #warn "the lock holder is already gone; ",
+                         #"simply remove the lock file";
+
+                    unlink $lockfile
+                        or err "failed to remove the lockfile hold by the ",
+                               "process with PID $pid ",
+                               "(which is already gone): $!\n";
+
+                } else {
+                    lock_hold_err($lockfile, $pid);
+                }
+
+            } else {
+                lock_hold_err($lockfile, $pid);
+            }
+        }
+    }
+
+    {
+        open my $out, ">$lockfile"
+            or err "failed to create the lock file $lockfile: $!\n";
+        print $out $$;
+        close $out;
+
+        $LockFile = $lockfile;
+    }
+}
+
+sub lock_hold_err {
+    my ($file, $pid) = @_;
+
+    err "Found the lock file $file hold by another opm process",
+        $pid ? "(PID $pid)" : "", ".\n";
 }

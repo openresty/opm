@@ -1049,8 +1049,10 @@ end -- do
 
 do
     local unescape_uri = ngx.unescape_uri
-    local pkg_exists
+    local pkg_fetch
     local bits = {}
+    local req_set_uri = ngx.req.set_uri
+    local ngx_exec = ngx.exec
 
     function _M.do_pkg_exists()
         local ctx = {}
@@ -1070,7 +1072,7 @@ do
         local op = unescape_uri(ngx_var.arg_op)
         local pkg_ver = unescape_uri(ngx_var.arg_version)
 
-        local found_ver, err = pkg_exists(ctx, account, pkg_name, op, pkg_ver)
+        local found_ver, err = pkg_fetch(ctx, account, pkg_name, op, pkg_ver)
         if not found_ver then
             ngx.status = 404
             say(err)
@@ -1081,7 +1083,38 @@ do
     end
 
 
-    function pkg_exists(ctx, account, pkg_name, op, pkg_ver)
+    function _M.do_pkg_fetch()
+        local ctx = {}
+
+        local account = unescape_uri(ngx_var.arg_account)
+        if not account or account == "" then
+            return log_and_out_err(ctx, 400, "no account specified")
+        end
+
+        ctx.account = account
+
+        local pkg_name = unescape_uri(ngx_var.arg_name)
+        if not pkg_name or pkg_name == "" then
+            return log_and_out_err(ctx, 400, "no name specified")
+        end
+
+        local op = unescape_uri(ngx_var.arg_op)
+        local pkg_ver = unescape_uri(ngx_var.arg_version)
+
+        local found_ver, err = pkg_fetch(ctx, account, pkg_name, op,
+                                          pkg_ver, true --[[ latest ]])
+        if not found_ver then
+            ngx.status = 404
+            say(err)
+            ngx.exit(404)
+        end
+
+        local fname = pkg_name .. "-" .. found_ver .. ".opm.tar.gz"
+        ngx.redirect("/api/pkg/tarball/" .. account .. "/" .. fname, 302)
+    end
+
+
+    function pkg_fetch(ctx, account, pkg_name, op, pkg_ver, latest)
         local sql = "select id from packages where name = "
                     .. quote_sql_str(pkg_name)
         local rows = query_db(sql)
@@ -1115,7 +1148,8 @@ do
         local i = 0
 
         i = i + 1
-        bits[i] = "select version_s from uploads where package = "
+        bits[i] = "select version_s from uploads where indexed = true"
+                  .. " and package = "
 
         i = i + 1
         bits[i] = pkg_id
@@ -1157,8 +1191,13 @@ do
             bits[i] = org_id
         end
 
+        if latest then
+            i = i + 1
+            bits[i] = " order by version_v desc"
+        end
+
         i = i + 1
-        bits[i] = " and indexed = true limit 1"
+        bits[i] = " limit 1"
 
         sql = tab_concat(bits)
         rows = query_db(sql)
@@ -1172,6 +1211,11 @@ do
         return assert(rows[1].version_s)
     end
 end  -- do
+
+
+function _M.get_final_directory()
+    return final_directory
+end
 
 
 return _M
