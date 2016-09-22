@@ -291,9 +291,13 @@ sub do_get {
                 "$actual_md5 vs $expected_md5\n";
         }
 
-        shell "tar", "-xzf", $dist_file;
-
         (my $dist_dir = $dist_file) =~ s/\.tar\.gz$//;
+
+        if (-d $dist_dir) {
+            shell "rm", "-rf", $dist_dir;
+        }
+
+        shell "tar", "-xzf", $dist_file;
 
         if (!-d $dist_dir) {
             err "the unpacked directory $dist_dir not found under $cache_subdir.\n";
