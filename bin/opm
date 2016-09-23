@@ -205,6 +205,16 @@ sub do_build {
         $LuaJIT = find_luajit();
     }
 
+    my $account;
+    if (!$server_build) {
+        my ($rcfile, $data) = get_rc_file();
+        my $default_sec = $data->{default};
+        $account = delete $default_sec->{github_account};
+        if (!$account) {
+            err "$rcfile: no \"github_account\" specified.\n";
+        }
+    }
+
     my $dist_file = "dist.ini";
     my $data = read_ini($dist_file);
 
@@ -221,6 +231,11 @@ sub do_build {
         || $dist_name =~ /[^-\w]|^(?:nginx|luajit|resty|openresty|opm|restydoc.*)$/i)
     {
         err "$dist_file: bad dist name: $dist_name\n";
+    }
+
+    if ($server_build) {
+        $account = delete $default_sec->{account}
+            or err "$dist_file: key \"account\" not found in the default section.\n";
     }
 
     my $author = delete $default_sec->{author};
@@ -575,6 +590,7 @@ sub do_build {
         open my $out, ">$outfile"
             or err "failed to open $outfile for writing: $!\n";
         print $out <<_EOC_;
+account = $account
 name = $dist_name
 abstract = $dist_abstract
 author = $author

@@ -232,12 +232,39 @@ sub process_cycle () {
         my $inifile = "dist.ini";
         my ($user_meta, $err) = read_ini($inifile);
         if (!$user_meta) {
-            $errstr = $err;
-            warn "failed to load $inifile: $errstr";
+            $errstr = "failed to load $inifile: $errstr";
+            warn $errstr;
             goto FAIL_UPLOAD;
         }
 
         my $default_sec = $user_meta->{default};
+
+        my $meta_name = $default_sec->{name};
+        if (!$meta_name) {
+            $errstr = "$inifile: no name found";
+            warn $errstr;
+            goto FAIL_UPLOAD;
+        }
+
+        if ($meta_name ne $name) {
+            $errstr = "$inifile: name \"$meta_name\" does not match \"$name\"";
+            warn $errstr;
+            goto FAIL_UPLOAD;
+        }
+
+        my $meta_account = $default_sec->{account};
+        if (!$meta_account) {
+            $errstr = "$inifile: no account found";
+            warn $errstr;
+            goto FAIL_UPLOAD;
+        }
+
+        if ($meta_account ne $account) {
+            $errstr = "$inifile: account \"$meta_account\" does not match "
+                      . "\"$account\"";
+            warn $errstr;
+            goto FAIL_UPLOAD;
+        }
 
         my $authors = $default_sec->{author};
         if (!$authors) {
