@@ -1427,7 +1427,7 @@ sub cmp_version {
 }
 
 sub remove_target {
-    my ($ctx, $name) = @_;
+    my ($ctx, $name, $account) = @_;
 
     my $install_dir = $ctx->{install_dir};
     if (!defined $install_dir) {
@@ -1436,6 +1436,23 @@ sub remove_target {
 
     my $cwd = cwd;
     chdir $install_dir or err "cannot chdir to $install_dir: $!\n";
+
+    my $manifest_dir = "manifest";
+    if (!-d $manifest_dir) {
+        err "package $account/$name not installed yet.\n";
+    }
+
+    my $meta_file = File::Spec->catfile($manifest_dir, "$name.meta");
+
+    if ($account && -f $meta_file) {
+        my $data = read_ini($meta_file);
+        my $default_sec = $data->{default};
+        my $meta_account = $default_sec->{account};
+        if ($account ne $meta_account) {
+            err "package $account/$name not installed yet ",
+                "(but $meta_account/$name already installed).\n";
+        }
+    }
 
     my $restydoc_index = "resty.index";
     if (-f $restydoc_index) {
@@ -1477,13 +1494,7 @@ sub remove_target {
         }
     }
 
-    my $manifest_dir = "manifest";
-    if (!-d $manifest_dir) {
-        make_path $manifest_dir;
-    }
-
     my $list_file = File::Spec->catfile($manifest_dir, "$name.list");
-    my $meta_file = File::Spec->catfile($manifest_dir, "$name.meta");
     my ($found_list, $found_meta);
 
     my %dirs;
@@ -1551,15 +1562,11 @@ sub do_remove {
     for my $dep (@$deps) {
         my ($account, $name, $op, $ver) = @$dep;
 
-        if ($account) {
-            warn "ignoring account name $account ...\n";
-        }
-
         if ($op && $ver) {
             warn "ignoring version constraint $op $ver ...\n";
         }
 
-        remove_target($ctx, $name);
+        remove_target($ctx, $name, $account);
     }
 }
 
