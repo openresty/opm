@@ -1106,7 +1106,7 @@ do
                                               pkg_ver, true --[[ latest ]])
         if not found_ver then
             ngx.status = 404
-            say(err)
+            say(err, ".")
             ngx.exit(404)
         end
 
@@ -1193,6 +1193,9 @@ do
             else
                 return nil, nil, "bad op argument value: " .. op
             end
+        else
+            op = nil
+            pkg_ver = nil
         end
 
         if user_id then
@@ -1222,8 +1225,16 @@ do
         rows = query_db(sql)
 
         if #rows == 0 then
-            return nil, nil, "package " .. pkg_name
-                             .. (op == 'ge' and '>=' or '=') .. pkg_ver
+
+            local spec
+
+            if op then
+                spec = (op == 'ge' and ' >= ' or ' = ') .. pkg_ver
+            else
+                spec = ""
+            end
+
+            return nil, nil, "package " .. pkg_name .. spec
                              .. " not found under account " .. account
         end
 

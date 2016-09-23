@@ -62,7 +62,7 @@ if ($cmd eq '-v') {
 }
 
 for ($cmd) {
-    if ($_ eq 'get') {
+    if ($_ eq 'get' || $_ eq 'install') {
         check_lock_file();
 
         do_get(@ARGV);
@@ -694,7 +694,7 @@ sub parse_deps {
 
             push @parsed, [$account, $name];
 
-        } elsif ($item =~ m{^ ([-/\w]+) \s* (\S+) \s* (\S+) $}x) {
+        } elsif ($item =~ m{^ ([-/\w]+) \s* ([^\w\s]+) \s* (\w\S*) $}x) {
             my ($full_name, $op, $ver) = ($1, $2, $3);
 
             my ($account, $name);
@@ -1002,7 +1002,18 @@ sub install_target {
         if (-f $meta_file) {
             my $data = read_ini($meta_file);
             my $default_sec = $data->{default};
-            my $v = $default_sec->{version};
+
+            my $meta_account = $default_sec->{account}
+                or err "$meta_file: key \"account\" not found.\n";
+
+            my $v = $default_sec->{version}
+                or err "$meta_file: key \"version\" not found.\n";
+
+            if ($meta_account ne $account) {
+                err "failed to install $account/$name: ",
+                    "$meta_account/$name $v already installed.\n";
+            }
+
             $installed_ver = $v;
 
             my $skip_install;
@@ -1077,7 +1088,7 @@ sub install_target {
 
         $body =~ s/\n+//gs;
 
-        my $spec = $op && $ver ? " $op $ver" : "";
+        my $spec = ($op && $ver) ? " $op $ver" : "";
         err "failed to find package $account/$name$spec: $body\n";
     }
 

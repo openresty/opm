@@ -623,7 +623,7 @@ sub parse_deps {
 
             push @parsed, [$account, $name];
 
-        } elsif ($item =~ m{^ ([-/\w]+) \s* (\S+) \s* (\S+) $}x) {
+        } elsif ($item =~ m{^ ([-/\w]+) \s* ([^\w\s]+) \s* (\w\S*) $}x) {
             my ($full_name, $op, $ver) = ($1, $2, $3);
 
             my ($account, $name);
