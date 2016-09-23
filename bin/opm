@@ -12,7 +12,8 @@ use File::Spec ();
 use Config ();
 use Cwd qw( realpath cwd );
 use Digest::MD5 ();
-use File::Copy qw( copy );
+use File::Copy qw( copy move );
+use File::Temp qw( tempfile );
 #use Data::Dumper qw( Dumper );
 
 my $MAX_DEPS = 100;
@@ -1154,8 +1155,6 @@ sub install_target {
         err "no $restydoc_index file found in $dist_dir/.\n";
     }
 
-    # TODO: install resty.index
-
     my $requires = $default_sec->{requires};
     if ($requires) {
         # TODO handle dependencies here...
@@ -1222,6 +1221,30 @@ sub install_target {
     }
 
     install_file($ini_file, "$name.meta", $manifest_dir);
+
+    # install resty.index
+
+    my $installed_restydoc_index = File::Spec->catfile($install_dir, "resty.index");
+
+    {
+        open my $out, ">>$installed_restydoc_index"
+            or err "failed to open $installed_restydoc_index for appending: $!\n";
+
+        open my $in, $restydoc_index
+            or err "$dist_dir: failed to open $restydoc_index for reading: $!\n";
+
+        print $out "# BEGIN $name\n\n";
+
+        while (<$in>) {
+            print $out $_;
+        }
+
+        print $out "# END $name\n";
+
+        close $in;
+        close $out;
+
+    }
 
     chdir $cwd
         or err "cannot chdir to $cwd: $!\n";
@@ -1309,7 +1332,48 @@ sub remove_target {
         err "cannot find OpenResty system installation directory.\n";
     }
 
+    my $cwd = cwd;
     chdir $install_dir or err "cannot chdir to $install_dir: $!\n";
+
+    my $restydoc_index = "resty.index";
+    if (-f $restydoc_index) {
+        open my $in, $restydoc_index
+            or err "cannot open $restydoc_index for reading: $!\n";
+
+        my ($tmp, $tmp_fname) = tempfile("opm-XXXXXXX",
+                                         TMPDIR => 1, UNLINK => 1);
+
+        my ($skipping, $found);
+        while (<$in>) {
+            if ($skipping) {
+                if (/^# END \Q$name\E$/) {
+                    undef $skipping;
+                }
+
+                next;
+            }
+
+            if (/^# BEGIN \Q$name\E$/) {
+                $found = 1;
+                $skipping = 1;
+                next;
+            }
+
+            print $tmp $_;
+        }
+
+        close $tmp;
+
+        close $in;
+
+        if ($found) {
+            move($tmp_fname, $restydoc_index)
+                or err "failed to move $tmp_fname to $restydoc_index: $!\n";
+
+        } else {
+            unlink $tmp_fname;  # ignore any errors here.
+        }
+    }
 
     my $manifest_dir = "manifest";
     if (!-d $manifest_dir) {
@@ -1362,6 +1426,8 @@ sub remove_target {
     if (!$found_list && !$found_meta) {
         err "package $name not installed yet.\n";
     }
+
+    chdir $cwd or err "cannot chdir to $install_dir";
 }
 
 sub do_remove {
