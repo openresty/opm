@@ -85,7 +85,7 @@ for ($cmd) {
         do_remove(@ARGV);
 
     } elsif ($_ eq 'list') {
-        do_pkg_list();
+        do_list();
 
     } else {
         err "unknown command: $cmd\n";
@@ -1563,7 +1563,7 @@ sub do_remove {
     }
 }
 
-sub do_pkg_list {
+sub do_list {
     my $install_dir = find_sys_install_dir();
     if (!defined $install_dir) {
         err "cannot find OpenResty system installation directory.\n";
@@ -1583,12 +1583,17 @@ sub do_pkg_list {
             my $pkg = $1;
 
             my $file = File::Spec->catfile($manifest_dir, $entry);
+
             my $data = read_ini($file);
             my $default_sec = $data->{default};
-            my $version = $default_sec->{version}
-                or err "no version found for package $pkg in $file.\n";
 
-            printf "%-60s %s\n", $pkg, $version;
+            my $version = $default_sec->{version}
+                or err "$file: no version found for package $pkg.\n";
+
+            my $account = $default_sec->{account}
+                or err "$file: no account found for package $pkg.\n";
+
+            printf "%-60s %s\n", "$account/$pkg", $version;
         }
     }
 
