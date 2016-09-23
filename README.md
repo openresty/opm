@@ -30,6 +30,9 @@ For library users:
 # lua-resty-foo is the library name under that github account.
 opm get some_account/lua-resty-foo
 
+# show all the installed packages.
+opm list
+
 # uninstall the newly installed package
 opm remove lua-resty-foo
 ```
