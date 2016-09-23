@@ -78,6 +78,11 @@ for ($cmd) {
         do_build();
         do_upload();
 
+    } elsif ($_ eq 'remove') {
+        check_lock_file();
+
+        do_remove(@ARGV);
+
     } else {
         err "unknown command: $cmd\n";
     }
@@ -93,7 +98,11 @@ END {
 }
 
 sub do_get {
-    my $deps = parse_deps(\@_, "(comand-line argument)");
+    if (@_ == 0) {
+        err "no packages specified for fetch.\n";
+    }
+
+    my $deps = parse_deps(\@_, "(command-line argument)");
 
     #warn Dumper($deps);
 
@@ -127,7 +136,17 @@ sub do_get {
 
     my $lualib_dir = File::Spec->catdir($install_dir, "lualib");
     if (!-d $lualib_dir) {
-        err "cannot find $lualib_dir in your OpenResty installation tree.\n";
+        make_path $lualib_dir;
+    }
+
+    my $pod_dir = File::Spec->catfile($install_dir, "pod");
+    if (!-d $pod_dir) {
+        make_path $pod_dir;
+    }
+
+    my $manifest_dir = File::Spec->catfile($install_dir, "manifest");
+    if (!-d $manifest_dir) {
+        make_path $manifest_dir;
     }
 
     my $ctx = {
@@ -135,6 +154,9 @@ sub do_get {
         cache_dir => $cache_dir,
         header_file => $header_file,
         install_dir => $install_dir,
+        lualib_dir => $lualib_dir,
+        pod_dir => $pod_dir,
+        manifest_dir => $manifest_dir,
     };
 
     for my $dep (@$deps) {
@@ -591,7 +613,7 @@ sub read_ini {
 }
 
 sub parse_deps {
-    my ($line, $file) = @_;
+    my ($line, $file, $relax) = @_;
 
     my @items;
     if (ref $line) {
@@ -615,7 +637,11 @@ sub parse_deps {
                 $name = $full_name;
 
             } else {
-                err "$file: bad dependency name: $full_name\n";
+                if (!$relax) {
+                    err "$file: bad dependency name: $full_name\n";
+                }
+
+                $name = $full_name;
             }
 
             push @parsed, [$account, $name];
@@ -873,6 +899,7 @@ sub lock_hold_err {
 
 sub install_target {
     my ($ctx, $target_spec) = @_;
+
     my ($account, $name, $op, $ver) = @$target_spec;
 
     my ($op_arg, $ver_arg);
@@ -900,6 +927,43 @@ sub install_target {
         }
 
         next;
+    }
+
+    my $manifest_dir = $ctx->{manifest_dir} or die;
+    my $meta_file = File::Spec->catfile($manifest_dir, "$name.meta");
+    my $installed_ver;
+
+    {
+        if (-f $meta_file) {
+            my $data = read_ini($meta_file);
+            my $default_sec = $data->{default};
+            my $v = $default_sec->{version};
+            $installed_ver = $v;
+
+            my $skip_install;
+
+            if (!defined $ver || !defined $op) {
+                goto SKIP_INSTALL;
+            }
+
+            if ($op eq '>=') {
+                if (cmp_version($ver, $v) >= 0) {
+                    remove_target($ctx, $name);
+
+                } else {
+                    # already installed and version is good
+                    goto SKIP_INSTALL;
+                }
+
+            } else {
+                if (cmp_version($ver, $v) == 0) {
+                    # already installed and version is good
+                    goto SKIP_INSTALL;
+                }
+
+                remove_target($ctx, $name);
+            }
+        }
     }
 
     my $download_url = $ctx->{download_url};
@@ -1090,6 +1154,13 @@ sub install_target {
         err "no $restydoc_index file found in $dist_dir/.\n";
     }
 
+    # TODO: install resty.index
+
+    my $requires = $default_sec->{requires};
+    if ($requires) {
+        # TODO handle dependencies here...
+    }
+
     my @lua_files;
     File::Find::find(sub {
         return unless -f $_;
@@ -1106,7 +1177,7 @@ sub install_target {
     File::Find::find(sub {
         return unless -f $_;
         my $src_path = $File::Find::name;
-        (my $target_path = $src_path) =~ s{^lib/}{};
+        (my $target_path = $src_path) =~ s{^pod/}{};
         push @pod_files, [$src_path, $target_path],
     },  'pod');
 
@@ -1115,23 +1186,54 @@ sub install_target {
     }
 
     my $install_dir = $ctx->{install_dir} or die;
+    my $lualib_dir = $ctx->{lualib_dir} or die;
 
     for my $spec (@lua_files) {
         my ($src, $dst) = @$spec;
 
-        install_file($src, $dst, File::Spec->catfile($install_dir, "lualib"));
+        install_file($src, $dst, $lualib_dir);
     }
+
+    my $pod_dir = $ctx->{pod_dir} or die;
 
     for my $spec (@pod_files) {
         my ($src, $dst) = @$spec;
 
-        install_file($src, $dst, File::Spec->catfile($install_dir, "pod"));
+        install_file($src, $dst, $pod_dir);
     }
+
+    my $list_file = File::Spec->catfile($manifest_dir, "$name.list");
+
+    {
+        open my $out, ">$list_file"
+            or err "failed to write to $list_file: $!\n";
+
+        for my $spec (@lua_files) {
+            my ($src, $dst) = @$spec;
+            print $out File::Spec->catfile("lualib", $dst), "\n";
+        }
+
+        for my $spec (@pod_files) {
+            my ($src, $dst) = @$spec;
+            print $out File::Spec->catfile("pod", $dst), "\n";
+        }
+
+        close $out;
+    }
+
+    install_file($ini_file, "$name.meta", $manifest_dir);
 
     chdir $cwd
         or err "cannot chdir to $cwd: $!\n";
 
     close $in;
+
+    return;
+
+SKIP_INSTALL:
+
+    warn "Package $name-$installed_ver already installed.\n";
+    return;
 }
 
 sub find_sys_install_dir {
@@ -1165,4 +1267,130 @@ sub install_file {
     }
 
     copy($src, $dst_path) or err "failed to copy $src to $dst_path: $!\n";
+}
+
+sub cmp_version {
+    my ($a, $b) = @_;
+
+    my @a = split /\D+/, $a;
+    my @b = split /\D+/, $b;
+
+    for (my $i = 0; $i < @a; $i++) {
+        my $x = $a[$i];
+        my $y = $b[$i];
+
+        if (!defined $x && !defined $y) {
+            return 0;
+        }
+
+        if (defined $x && defined $y) {
+            my $val = ($x <=> $y);
+            if ($val == 0) {
+                next;
+            }
+            return $val;
+        }
+
+        if (defined $x) {
+            return 1;
+        }
+
+        return -1;
+    }
+
+    return 0;
+}
+
+sub remove_target {
+    my ($ctx, $name) = @_;
+
+    my $install_dir = $ctx->{install_dir};
+    if (!defined $install_dir) {
+        err "cannot find OpenResty system installation directory.\n";
+    }
+
+    chdir $install_dir or err "cannot chdir to $install_dir: $!\n";
+
+    my $manifest_dir = "manifest";
+    if (!-d $manifest_dir) {
+        make_path $manifest_dir;
+    }
+
+    my $list_file = File::Spec->catfile($manifest_dir, "$name.list");
+    my $meta_file = File::Spec->catfile($manifest_dir, "$name.meta");
+    my ($found_list, $found_meta);
+
+    my %dirs;
+
+    if (-f $list_file) {
+        $found_list = 1;
+        open my $in, $list_file
+            or err "failed to open $list_file for reading: $!\n";
+        while (<$in>) {
+            chomp;
+            if (m{(.+)/}) {
+                my $dir = $1;
+                if ($dir =~ m{\S/\S}) {
+                    $dirs{$dir} = 1;
+                }
+            }
+            unlink or warn "WARNING: failed to remove file $_: $!\n";
+        }
+        close $in;
+
+        unlink $list_file
+            or warn "WARNING: failed to remove file $list_file: $!\n";
+
+        for my $dir (reverse sort keys %dirs) {
+            rmdir $dir;  # we ignore any errors here...
+        }
+
+    } elsif (-f $meta_file) {
+        warn "file $list_file is missing.\n";
+    }
+
+    if (-f $meta_file) {
+        $found_meta = 1;
+
+        unlink $meta_file
+            or warn "WARNING: failed to remove file $meta_file: $!\n";
+
+    } elsif ($found_list) {
+        warn "file $meta_file is missing.\n";
+    }
+
+    if (!$found_list && !$found_meta) {
+        err "package $name not installed yet.\n";
+    }
+}
+
+sub do_remove {
+    if (@_ == 0) {
+        err "no packages specified for removal.\n";
+    }
+
+    my $deps = parse_deps(\@_, "(command-line argument)", 1);
+
+    my $install_dir = find_sys_install_dir();
+    if (!defined $install_dir) {
+        err "cannot find OpenResty system installation directory.\n";
+    }
+
+    my $ctx = {
+        install_dir => $install_dir,
+    };
+
+    for my $dep (@$deps) {
+        my ($account, $name, $op, $ver) = @$dep;
+
+        if ($account) {
+            warn "ignoring account name $account ...\n";
+        }
+
+        if ($op && $ver) {
+            warn "ignoring version constraint $op $ver ...\n";
+        }
+
+        remove_target($ctx, $name);
+    }
 }
