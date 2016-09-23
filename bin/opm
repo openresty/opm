@@ -87,6 +87,9 @@ for ($cmd) {
     } elsif ($_ eq 'list') {
         do_list();
 
+    } elsif ($_ eq 'info') {
+        do_info();
+
     } else {
         err "unknown command: $cmd\n";
     }
@@ -1606,4 +1609,78 @@ sub do_list {
 
     closedir $dh
         or err "failed to close directory $manifest_dir: $!\n";
+}
+
+sub do_info {
+    my $install_dir = find_sys_install_dir();
+    if (!defined $install_dir) {
+        err "cannot find OpenResty system installation directory.\n";
+    }
+
+    my $manifest_dir = File::Spec->catfile($install_dir, "manifest");
+    if (!-d $manifest_dir) {
+        return;
+    }
+
+    local $_;
+    for (@ARGV) {
+        my ($account, $name);
+
+        if (m{^ ([-\w]+) / ([-\w]+) $}x) {
+            ($account, $name) = ($1, $2);
+
+        } elsif (m{^ ([-\w]+) }x) {
+            $name = $1;
+
+        } else {
+            err "bad package name: $_\n";
+        }
+
+        my $meta_file = File::Spec->catfile($manifest_dir, "$name.meta");
+        if (!-f $meta_file) {
+            err "package $name not installed yet.\n";
+        }
+
+        my $data = read_ini $meta_file;
+        my $default_sec = $data->{default};
+
+        my $meta_account = $default_sec->{account}
+            or err "$meta_file: key \"account\" not found.\n";
+
+        if ($account && $meta_account ne $account) {
+            err "package $account/$name not installed ",
+                "(but $meta_account/$name installed).\n";
+        }
+
+        my $license = $default_sec->{license}
+            or err "$meta_file: key \"license\" not found.\n";
+
+        my @licenses = split /\s*,\s*/, $license;
+        my $license_lines = '';
+        my $i = 0;
+        for my $l (@licenses) {
+            my $desc = $Licenses{$l} || 'Unknown';
+            if ($i == 0) {
+                $license_lines .= $desc;
+
+            } else {
+                $license_lines .= ",\n                 : $desc";
+            }
+
+        } continue {
+            $i++;
+        }
+
+        print <<_EOC_;
+Name             : $name
+Version          : $default_sec->{version}
+Abstract         : $default_sec->{abstract}
+Author           : $default_sec->{author}
+Account          : $meta_account
+Code Repo        : $default_sec->{repo_link}
+License          : $license_lines
+Requires         : $default_sec->{requires}
+Original Work    : $default_sec->{is_original}
+_EOC_
+    }
 }
