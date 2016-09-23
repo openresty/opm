@@ -79,7 +79,7 @@ for ($cmd) {
         do_build();
         do_upload();
 
-    } elsif ($_ eq 'remove') {
+    } elsif ($_ eq 'remove' || $_ eq 'uninstall') {
         check_lock_file();
 
         do_remove(@ARGV);
