@@ -150,6 +150,28 @@ sub do_get {
         make_path $manifest_dir;
     }
 
+    my @list_files = glob "$manifest_dir/*.list";
+    my %installed_files;
+
+    for my $file (@list_files) {
+        my $pkg_name;
+        if ($file !~ m{^ .* / ([^/]+) \. list $}x) {
+            next;
+        }
+
+        $pkg_name = $1;
+
+        open my $in, $file
+            or die "cannot open $file for reading: $!\n";
+        while (<$in>) {
+            next unless m{^lualib/};
+            chomp;
+            #warn "$_ => $pkg_name";
+            $installed_files{$_} = $pkg_name;
+        }
+        close $in;
+    }
+
     my $ctx = {
         download_url => $download_url,
         cache_dir => $cache_dir,
@@ -159,7 +181,7 @@ sub do_get {
         pod_dir => $pod_dir,
         manifest_dir => $manifest_dir,
         pkg_installing => {},  # for checking cyclic dependency chain
-        files_installed => {},  # for clashing files from different pkgs
+        installed_files => \%installed_files,  # for clashing files from different pkgs
         level => 0,
     };
 
@@ -1204,6 +1226,20 @@ sub install_target {
         err "no library files found in $dist_dir/.\n";
     }
 
+    my $installed_files = $ctx->{installed_files};
+
+    for my $spec (@lua_files) {
+        my ($src, $dst) = @$spec;
+
+        my $file = File::Spec->catfile("lualib", $dst);
+        my $pkg = $installed_files->{$file};
+        if ($pkg) {
+            err "file $dst in package $account/$name already appears ",
+                "in the previously installed package $pkg.\n";
+        }
+        $installed_files->{$file} = "$name";
+    }
+
     my @pod_files;
     File::Find::find(sub {
         return unless -f $_;
@@ -1241,7 +1277,8 @@ sub install_target {
 
         for my $spec (@lua_files) {
             my ($src, $dst) = @$spec;
-            print $out File::Spec->catfile("lualib", $dst), "\n";
+            my $file = File::Spec->catfile("lualib", $dst);
+            print $out $file, "\n";
         }
 
         for my $spec (@pod_files) {
