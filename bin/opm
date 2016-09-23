@@ -158,6 +158,9 @@ sub do_get {
         lualib_dir => $lualib_dir,
         pod_dir => $pod_dir,
         manifest_dir => $manifest_dir,
+        pkg_installing => {},  # for checking cyclic dependency chain
+        files_installed => {},  # for clashing files from different pkgs
+        level => 0,
     };
 
     for my $dep (@$deps) {
@@ -918,16 +921,33 @@ sub install_target {
     }
 
     if (!$account) {
+        if ($ctx->{level} == 0) {
+            if ($name =~ /^(?:luajit|openresty)/i) {
+                err "you cannot install $name via opm.\n";
+
+            } else {
+                # TODO do package search remotely
+                err "bad package name; you must specify an account prefix, ",
+                    "like \"openresty/lua-resty-lrucache\".\n"
+            }
+
+            return;
+        }
+
+        # nested, resolved as a true dependency.
+
         if ($name =~ /^(?:luajit|openresty)/i) {
-            err "you cannot install $name via opm.\n";
+            # TODO check LuaJIT and OpenResty versions.
+            return;
 
         } else {
-            # TODO do package search remotely
             err "bad package name; you must specify an account prefix, ",
                 "like \"openresty/lua-resty-lrucache\".\n"
         }
+    }
 
-        next;
+    if ($ctx->{pkg_installing}{"$account/$name"}) {
+        err "cyclic dependency chain detected when installing the package $account/$name\n";
     }
 
     my $manifest_dir = $ctx->{manifest_dir} or die;
@@ -972,7 +992,7 @@ sub install_target {
     my $url = qq{$download_url/api/pkg/fetch?}
               . qq{account=$account\&name=$name\&op=$op_arg\&version=$ver_arg};
 
-    warn "* Fetching $url\n";
+    warn "* Fetching $account/$name\n";
 
     my $cmd = qq/curl -sS -i -A '$UserAgent' '$url'/;
     my $out = `$cmd`;
@@ -1075,7 +1095,7 @@ sub install_target {
 
     my $header_file = $ctx->{header_file};
 
-    warn "* Downloading $url\n";
+    warn "  Downloading $url\n";
     shell "curl", "-A", $UserAgent, "-o", $dist_file_path, "-D", $header_file, $url;
 
     open $in, $header_file or
@@ -1157,7 +1177,19 @@ sub install_target {
 
     my $requires = $default_sec->{requires};
     if ($requires) {
-        # TODO handle dependencies here...
+        my $deps = parse_deps($requires, $ini_file);
+
+        $ctx->{pkg_installing}{"$account/$name"} = 1;
+
+        $ctx->{level}++;
+
+        for my $dep (@$deps) {
+            install_target($ctx, $dep);
+        }
+
+        $ctx->{level}--;
+
+        delete $ctx->{pkg_installing}{"$account/$name"};
     }
 
     my @lua_files;
