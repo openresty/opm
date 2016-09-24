@@ -15,7 +15,7 @@ test: | initdb reload
 	cd ../lua-resty-core && $(opm) build
 	cd ../lua-resty-core && $(opm) upload
 	PATH=$$PWD/bin:$$PATH time $(opm_pkg_indexer)
-	$(opm) get openresty/lua-resty-lrucache
+	$(opm) --cwd get openresty/lua-resty-core
 
 .PHONY: run
 run:
