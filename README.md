@@ -49,6 +49,20 @@ opm update
 opm remove lua-resty-foo
 ```
 
+All the commands can follow the `--cwd` option to work in the current working
+directory (under ./resty/modules/) instead of the system-wide location.
+
+```bash
+# install into ./resty_modules/ instead of the system-wide location:
+opm --cwd get foo/lua-resty-bar
+
+# check the locally installed packages under ./resty_modules/
+opm --cwd list
+
+# remove the locally installed packages under ./resty_modules/
+opm --cwd remove lua-resty-bar
+```
+
 For library authors:
 
 ```bash

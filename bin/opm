@@ -44,8 +44,22 @@ my %Licenses = (
 
 sub err (@);
 sub shell (@);
+sub find_sys_install_dir ();
+sub get_install_dir ();
+sub install_file ($$$);
+sub install_target ($$);
+sub upgrade_target ($$$$);
+sub remove_target ($$$);
+sub do_build ($);
+sub check_lock_file ();
+sub get_rc_file ();
+sub create_stub_rc_file ($);
+sub read_ini ($);
+sub init_installation_ctx ($);
+sub cmp_version ($$);
 
-GetOptions("h|help",          \(my $help))
+GetOptions("h|help",          \(my $help),
+           "cwd",             \(my $install_into_cwd))
    or usage(1);
 
 if ($help) {
@@ -67,7 +81,7 @@ for ($cmd) {
         do_get(@ARGV);
 
     } elsif ($_ eq 'build') {
-        do_build();
+        do_build(0);
 
     } elsif ($_ eq 'server-build') {
         do_build(1);
@@ -75,7 +89,7 @@ for ($cmd) {
     } elsif ($_ eq 'upload') {
         check_lock_file();
 
-        do_build();
+        do_build(0);
         do_upload();
 
     } elsif ($_ eq 'remove' || $_ eq 'uninstall') {
@@ -119,14 +133,14 @@ sub do_get {
 
     #warn Dumper($deps);
 
-    my $ctx = init_installation_ctx();
+    my $ctx = init_installation_ctx(0);
 
     for my $dep (@$deps) {
         install_target($ctx, $dep);
     }
 }
 
-sub do_build {
+sub do_build ($) {
     my $server_build = shift;
 
     #if ($server_build) { while (1) {} }
@@ -540,7 +554,7 @@ _EOC_
     shell "tar", "-cvzf", $TarBall, $root_dir;
 }
 
-sub read_ini {
+sub read_ini ($) {
     my $infile = shift;
     open my $in, $infile
         or err "cannot open $infile for reading: $!\n";
@@ -771,7 +785,7 @@ sub find_restydoc_index {
     return $file;
 }
 
-sub create_stub_rc_file {
+sub create_stub_rc_file ($) {
     my $rcfile = shift;
 
     # create a stub
@@ -798,7 +812,7 @@ _EOC_
         or err "$rcfile: failed to chmod to 0600: $!\n";
 }
 
-sub get_rc_file {
+sub get_rc_file () {
     my $home = $ENV{HOME};
     if (!$home) {
         err "environment HOME not defined.\n";
@@ -812,7 +826,7 @@ sub get_rc_file {
     return ($rcfile, read_ini($rcfile));
 }
 
-sub check_lock_file {
+sub check_lock_file () {
     # TODO when we support the --cwd option, we should use a lock file in the
     # current working directory instead, like ./resty_modules/lock
 
@@ -875,7 +889,7 @@ sub lock_hold_err {
         $pid ? "(PID $pid)" : "", ".\n";
 }
 
-sub install_target {
+sub install_target ($$) {
     my ($ctx, $target_spec) = @_;
 
     my ($account, $name, $op, $ver) = @$target_spec;
@@ -1228,7 +1242,7 @@ sub install_target {
     }
 
     if ($remove_old) {
-        remove_target($ctx, $name);
+        remove_target($ctx, $name, undef);
     }
 
     my $installed_files = $ctx->{installed_files};
@@ -1333,13 +1347,31 @@ SKIP_INSTALL:
     return;
 }
 
-sub find_sys_install_dir {
-    return realpath(
-                File::Spec->catdir(
-                    $FindBin::RealBin, "..", "site"));
+sub get_install_dir () {
+    if (defined $install_into_cwd) {
+        my $dir = File::Spec->catdir(cwd(), "resty_modules");
+        if (!-d $dir) {
+            make_path $dir;
+        }
+        return $dir;
+    }
+
+    return find_sys_install_dir();
 }
 
-sub install_file {
+sub find_sys_install_dir () {
+    my $dir = realpath(
+                File::Spec->catdir(
+                    $FindBin::RealBin, "..", "site"));
+
+    if (!defined $dir || !-d $dir) {
+        err "cannot find OpenResty system installation directory.\n";
+    }
+
+    return $dir;
+}
+
+sub install_file ($$$) {
     my ($src, $dst, $install_dir) = @_;
 
     my $dst_path = File::Spec->catfile($install_dir, $dst);
@@ -1366,7 +1398,7 @@ sub install_file {
     copy($src, $dst_path) or err "failed to copy $src to $dst_path: $!\n";
 }
 
-sub cmp_version {
+sub cmp_version ($$) {
     my ($a, $b) = @_;
 
     my @a = split /\D+/, $a;
@@ -1398,7 +1430,7 @@ sub cmp_version {
     return 0;
 }
 
-sub remove_target {
+sub remove_target ($$$) {
     my ($ctx, $name, $account) = @_;
 
     my $install_dir = $ctx->{install_dir};
@@ -1546,7 +1578,7 @@ sub do_remove {
 
     my $deps = parse_deps(\@_, "(command-line argument)", 1);
 
-    my $ctx = init_installation_ctx();
+    my $ctx = init_installation_ctx(0);
 
     for my $dep (@$deps) {
         my ($account, $name, $op, $ver) = @$dep;
@@ -1560,10 +1592,7 @@ sub do_remove {
 }
 
 sub do_list {
-    my $install_dir = find_sys_install_dir();
-    if (!defined $install_dir) {
-        err "cannot find OpenResty system installation directory.\n";
-    }
+    my $install_dir = get_install_dir();
 
     my $manifest_dir = File::Spec->catfile($install_dir, "manifest");
     if (!-d $manifest_dir) {
@@ -1598,10 +1627,7 @@ sub do_list {
 }
 
 sub do_info {
-    my $install_dir = find_sys_install_dir();
-    if (!defined $install_dir) {
-        err "cannot find OpenResty system installation directory.\n";
-    }
+    my $install_dir = get_install_dir();
 
     my $manifest_dir = File::Spec->catfile($install_dir, "manifest");
     if (!-d $manifest_dir) {
@@ -1672,7 +1698,7 @@ _EOC_
 }
 
 sub do_upgrade {
-    my $ctx = init_installation_ctx();
+    my $ctx = init_installation_ctx(1);
     my $manifest_dir = $ctx->{manifest_dir};
 
     local $_;
@@ -1694,7 +1720,9 @@ sub do_upgrade {
     }
 }
 
-sub init_installation_ctx {
+sub init_installation_ctx ($) {
+    my $upgrade = shift;
+
     my ($rcfile, $data) = get_rc_file();
 
     my $default_sec = delete $data->{default};
@@ -1718,10 +1746,7 @@ sub init_installation_ctx {
 
     my $header_file = File::Spec->catfile($cache_dir, "last-resp-header");
 
-    my $install_dir = find_sys_install_dir();
-    if (!defined $install_dir) {
-        err "cannot find OpenResty system installation directory.\n";
-    }
+    my $install_dir = get_install_dir();
 
     my $lualib_dir = File::Spec->catdir($install_dir, "lualib");
     if (!-d $lualib_dir) {
@@ -1774,13 +1799,13 @@ sub init_installation_ctx {
         pkg_installing => {},  # for checking cyclic dependency chain
         installed_files => \%installed_files,  # for clashing files from different pkgs
         level => 0,
-        upgrade => 1,
+        upgrade => $upgrade,
     };
 
     return $ctx;
 }
 
-sub upgrade_target {
+sub upgrade_target ($$$$) {
     my ($ctx, $account, $name, $meta_file) = @_;
 
     my $data = read_ini $meta_file;
@@ -1803,17 +1828,14 @@ sub upgrade_target {
 }
 
 sub do_update {
-    my $install_dir = find_sys_install_dir();
-    if (!defined $install_dir) {
-        err "cannot find OpenResty system installation directory.\n";
-    }
+    my $install_dir = get_install_dir();
 
     my $manifest_dir = File::Spec->catfile($install_dir, "manifest");
     if (!-d $manifest_dir) {
         return;
     }
 
-    my $ctx = init_installation_ctx();
+    my $ctx = init_installation_ctx(1);
 
     opendir my $dh, $manifest_dir
         or err "failed to open directory $manifest_dir: $!\n";
@@ -1860,6 +1882,10 @@ opm [options] command package...
 Options:
     -h
     --help              Print this help.
+
+    --cwd               Install into the current working directory under ./resty_modules/
+                        instead of the system-wide OpenResty installation tree contaning
+                        this tool.
 
 Commands:
     build               Build from the current working directory a package tarball ready
