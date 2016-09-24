@@ -65,6 +65,8 @@ opm upload
 TODO
 ====
 
+* Add the `--cwd` command-line option to allow installing packages into `./resty_modules/`
+instead of the system-wide OpenResty installation tree containing the `opm` tool.
 * Add a web site for opm.openresty.org (similar to search.cpan.org).
 * Add support for Lua C modules and LuaJIT FFI modules with standalone C libraries.
 * Add (limited) support for LuaRocks via the special namespace `luarocks`, for example,
