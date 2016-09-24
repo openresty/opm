@@ -9,6 +9,7 @@ Table of Contents
 * [Name](#name)
 * [Status](#status)
 * [Synopsis](#synopsis)
+* [Prerequisites](#prerequisites)
 * [TODO](#todo)
 * [Author](#author)
 * [Copyright and License](#copyright-and-license)
@@ -79,11 +80,23 @@ opm build
 opm upload
 ```
 
+Prerequisites
+=============
+
+opm
+---
+
+You just need `perl`, `tar`, and `curl` to run the `opm` tool. Ensure that your perl is not
+too old (better be 5.10.x and later), and your curl supports SNI.
+
+[Back to TOC](#table-of-contents)
+
 TODO
 ====
 
-* Add the `--cwd` command-line option to allow installing packages into `./resty_modules/`
-instead of the system-wide OpenResty installation tree containing the `opm` tool.
+* Add `opm search <pattern>` command.
+* Add `opm files <package>` command.
+* Add `opm whatprovides <package>` command.
 * Add plugin mechanisms to `opm build` (similar to Perl's Dist::Zilla packaging framework).
 * Add a web site for opm.openresty.org (similar to search.cpan.org).
 * Add support for Lua C modules and LuaJIT FFI modules with standalone C libraries.
