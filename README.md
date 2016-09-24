@@ -87,7 +87,7 @@ opm
 ---
 
 You just need `perl`, `tar`, and `curl` to run the `opm` tool. Ensure that your perl is not
-too old (better be 5.10.x and later), and your curl supports SNI.
+too old (should be at least `5.10.1`), and your curl supports SNI.
 
 [Back to TOC](#table-of-contents)
 

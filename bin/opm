@@ -2,6 +2,7 @@
 
 # Copyright (C) Yichun Zhang (agentzh)
 
+use v5.10.1;
 use strict;
 use warnings;
 
