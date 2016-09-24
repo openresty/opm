@@ -88,10 +88,10 @@ for ($cmd) {
         do_list();
 
     } elsif ($_ eq 'info') {
-        do_info();
+        do_info(@ARGV);
 
     } elsif ($_ eq 'upgrade') {
-        do_upgrade();
+        do_upgrade(@ARGV);
 
     } else {
         err "unknown command: $cmd\n";
@@ -1606,7 +1606,7 @@ sub do_info {
     }
 
     local $_;
-    for (@ARGV) {
+    for (@_) {
         my ($account, $name);
 
         if (m{^ ([-\w]+) / ([-\w]+) $}x) {
@@ -1673,7 +1673,7 @@ sub do_upgrade {
     my $manifest_dir = $ctx->{manifest_dir};
 
     local $_;
-    for (@ARGV) {
+    for (@_) {
         my ($account, $name);
 
         if (m{^ ([-\w]+) / ([-\w]+) $}x) {
