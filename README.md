@@ -36,7 +36,11 @@ opm info lua-resty-foo
 # show all the installed packages.
 opm list
 
+# upgrade package lua-resty-foo to the latest version.
 opm upgrade lua-resty-foo
+
+# update all the installed packages to their latest version.
+opm update
 
 # uninstall the newly installed package
 opm remove lua-resty-foo
