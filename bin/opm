@@ -14,6 +14,7 @@ use Cwd qw( realpath cwd );
 use Digest::MD5 ();
 use File::Copy qw( copy move );
 use File::Temp qw( tempfile );
+use Getopt::Long qw( GetOptions :config no_ignore_case require_order);
 #use Data::Dumper qw( Dumper );
 
 my $MAX_DEPS = 100;
@@ -41,16 +42,14 @@ my %Licenses = (
     proprietary => 'Proprietary',
 );
 
-sub err {
-    die "ERROR: ", @_;
-}
+sub err (@);
+sub shell (@);
 
-sub shell (@) {
-    #warn join(" ", map { /["?&;|\s]/ ? "'$_'" : $_ } @_), "\n";
+GetOptions("h|help",          \(my $help))
+   or usage(1);
 
-    if (system(@_) != 0) {
-        err "failed to run command\n";
-    }
+if ($help) {
+    usage(0);
 }
 
 my $cmd = shift or
@@ -97,7 +96,8 @@ for ($cmd) {
         do_update();
 
     } else {
-        err "unknown command: $cmd\n";
+        warn "ERROR: unknown command: $cmd\n\n";
+        usage(1);
     }
 }
 
@@ -1837,4 +1837,71 @@ sub do_update {
 
     closedir $dh
         or err "failed to close directory $manifest_dir: $!\n";
+}
+
+sub err (@) {
+    die "ERROR: ", @_;
+}
+
+sub shell (@) {
+    #warn join(" ", map { /["?&;|\s]/ ? "'$_'" : $_ } @_), "\n";
+
+    if (system(@_) != 0) {
+        err "failed to run command\n";
+    }
+}
+
+sub usage {
+    my $rc = shift;
+
+    my $msg = <<_EOC_;
+opm [options] command package...
+
+Options:
+    -h
+    --help              Print this help.
+
+Commands:
+    build               Build from the current working directory a package tarball ready
+                        for uploading to the server.
+
+    info PACKAGE...     Output the detailed information (or meta data) about the specified
+                        packages.  Short package names like "lua-resty-lock" are acceptable.
+
+    get PACKAGE...      Fetch and install the specified packages. Fully qualified package
+                        names like "openresty/lua-resty-lock" are required. One can also
+                        specify a version constraint like "=0.05" and ">=0.01".
+
+    list                List all the installed packages. Both the package names and versions
+                        are displayed.
+
+    remove PACKAGE...   Remove (or uninstall) the specified packages. Short package names
+                        like "lua-resty-lock" are acceptable.
+
+    server-build        Build a final package tarball ready for distribution on the server.
+                        This command is usually used by the server to verify the uploaded
+                        package tarball.
+
+    update              Update all the installed packages to their latest version from
+                        the server.
+
+    upgrade PACKAGE...  Upgrade the packages specified by names to the latest version from
+                        the server. Short package names like "lua-resty-lock" are acceptable.
+
+    upload              Upload the package tarball to the server. This command always invokes
+                        the build command automatically right before uploading.
+
+For bug reporting instructions, please see:
+
+    <https://openresty.org/en/community.html>
+
+Copyright (C) Yichun Zhang (agentzh). All rights reserved.
+_EOC_
+    if ($rc == 0) {
+        print $msg;
+        exit(0);
+    }
+
+    warn $msg;
+    exit($rc);
 }

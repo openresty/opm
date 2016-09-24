@@ -26,6 +26,9 @@ Synopsis
 For library users:
 
 ```bash
+# show usage
+opm --help
+
 # account is a github account (either a github user or a github org);
 # lua-resty-foo is the library name under that github account.
 opm get some_account/lua-resty-foo
@@ -67,6 +70,7 @@ TODO
 
 * Add the `--cwd` command-line option to allow installing packages into `./resty_modules/`
 instead of the system-wide OpenResty installation tree containing the `opm` tool.
+* Add plugin mechanisms to `opm build` (similar to Perl's Dist::Zilla packaging framework).
 * Add a web site for opm.openresty.org (similar to search.cpan.org).
 * Add support for Lua C modules and LuaJIT FFI modules with standalone C libraries.
 * Add (limited) support for LuaRocks via the special namespace `luarocks`, for example,
