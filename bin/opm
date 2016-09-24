@@ -1669,12 +1669,10 @@ _EOC_
 }
 
 sub do_upgrade {
-    local $_;
-
     my $ctx = init_installation_ctx();
     my $manifest_dir = $ctx->{manifest_dir};
-    my $target = [];
 
+    local $_;
     for (@ARGV) {
         my ($account, $name);
 
@@ -1689,30 +1687,7 @@ sub do_upgrade {
         }
 
         my $meta_file = File::Spec->catfile($manifest_dir, "$name.meta");
-        if (!-f $meta_file) {
-            err "package $name not installed yet.\n";
-        }
-
-        my $data = read_ini $meta_file;
-        my $default_sec = $data->{default};
-
-        my $ver = $default_sec->{version}
-            or err "$meta_file: key \"version\" not found.\n";
-
-        my $meta_account = $default_sec->{account}
-            or err "$meta_file: key \"account\" not found.\n";
-
-        if ($account && $meta_account ne $account) {
-            err "package $account/$name not installed ",
-                "(but $meta_account/$name installed).\n";
-        }
-
-        $target->[0] = $meta_account;
-        $target->[1] = $name;
-        $target->[2] = ">";
-        $target->[3] = $ver;
-
-        install_target($ctx, $target);
+        upgrade_target($ctx, $account, $name, $meta_file);
     }
 }
 
@@ -1800,4 +1775,26 @@ sub init_installation_ctx {
     };
 
     return $ctx;
+}
+
+sub upgrade_target {
+    my ($ctx, $account, $name, $meta_file) = @_;
+
+    my $data = read_ini $meta_file;
+    my $default_sec = $data->{default};
+
+    my $ver = $default_sec->{version}
+        or err "$meta_file: key \"version\" not found.\n";
+
+    my $meta_account = $default_sec->{account}
+        or err "$meta_file: key \"account\" not found.\n";
+
+    if ($account && $meta_account ne $account) {
+        err "package $account/$name not installed ",
+            "(but $meta_account/$name installed).\n";
+    }
+
+    my $target = [$meta_account, $name, ">", $ver];
+
+    install_target($ctx, $target);
 }
