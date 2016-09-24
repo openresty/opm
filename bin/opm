@@ -93,6 +93,9 @@ for ($cmd) {
     } elsif ($_ eq 'upgrade') {
         do_upgrade(@ARGV);
 
+    } elsif ($_ eq 'update') {
+        do_update();
+
     } else {
         err "unknown command: $cmd\n";
     }
@@ -910,6 +913,7 @@ sub install_target {
     my $manifest_dir = $ctx->{manifest_dir} or die;
     my $meta_file = File::Spec->catfile($manifest_dir, "$name.meta");
     my $installed_ver;
+    my $remove_old;
 
     {
         if (-f $meta_file) {
@@ -938,7 +942,7 @@ sub install_target {
             if ($op eq '>=') {
                 if (cmp_version($ver, $v) > 0) {
                     #warn "upgrading $account/$name from $v ...\n";
-                    remove_target($ctx, $name);
+                    $remove_old = 1;
 
                 } else {
                     # already installed and version is good
@@ -948,7 +952,7 @@ sub install_target {
             } elsif ($op eq '>') {
                 if (cmp_version($ver, $v) >= 0) {
                     #warn "upgrading $account/$name from $v ...\n";
-                    remove_target($ctx, $name);
+                    $remove_old = 1;
 
                 } else {
                     # already installed and version is good
@@ -963,7 +967,7 @@ sub install_target {
                     goto SKIP_INSTALL;
                 }
 
-                remove_target($ctx, $name);
+                $remove_old = 1;
             }
         }
     }
@@ -999,7 +1003,10 @@ sub install_target {
     my $url = qq{$download_url/api/pkg/fetch?}
               . qq{account=$account\&name=$name\&op=$op_arg\&version=$ver_arg};
 
-    warn "* Fetching $account/$name\n";
+    if (!defined $op) {
+        $op = '';
+    }
+    warn "* Fetching $account/$name $op $ver_arg\n";
 
     my $cmd = qq/curl -sS -i -A '$UserAgent' '$url'/;
     my $out = `$cmd`;
@@ -1220,6 +1227,10 @@ sub install_target {
         err "no library files found in $dist_dir/.\n";
     }
 
+    if ($remove_old) {
+        remove_target($ctx, $name);
+    }
+
     my $installed_files = $ctx->{installed_files};
 
     for my $spec (@lua_files) {
@@ -1395,7 +1406,7 @@ sub remove_target {
         err "cannot find OpenResty system installation directory.\n";
     }
 
-    warn $install_dir;
+    #warn $install_dir;
 
     my $cwd = cwd;
     chdir $install_dir or err "cannot chdir to $install_dir: $!\n";
@@ -1407,8 +1418,7 @@ sub remove_target {
 
     my $meta_file = File::Spec->catfile($manifest_dir, "$name.meta");
 
-    warn $meta_file;
-    system "pwd; ls -lh $meta_file; cat $meta_file";
+    #warn $meta_file;
 
     my $version;
     if (-f $meta_file) {
@@ -1536,14 +1546,7 @@ sub do_remove {
 
     my $deps = parse_deps(\@_, "(command-line argument)", 1);
 
-    my $install_dir = find_sys_install_dir();
-    if (!defined $install_dir) {
-        err "cannot find OpenResty system installation directory.\n";
-    }
-
-    my $ctx = {
-        install_dir => $install_dir,
-    };
+    my $ctx = init_installation_ctx();
 
     for my $dep (@$deps) {
         my ($account, $name, $op, $ver) = @$dep;
@@ -1797,4 +1800,41 @@ sub upgrade_target {
     my $target = [$meta_account, $name, ">", $ver];
 
     install_target($ctx, $target);
+}
+
+sub do_update {
+    my $install_dir = find_sys_install_dir();
+    if (!defined $install_dir) {
+        err "cannot find OpenResty system installation directory.\n";
+    }
+
+    my $manifest_dir = File::Spec->catfile($install_dir, "manifest");
+    if (!-d $manifest_dir) {
+        return;
+    }
+
+    my $ctx = init_installation_ctx();
+
+    opendir my $dh, $manifest_dir
+        or err "failed to open directory $manifest_dir: $!\n";
+
+    while (my $entry = readdir $dh) {
+        #warn $entry;
+        if ($entry =~ /(.+)\.meta$/) {
+            my $name = $1;
+
+            my $file = File::Spec->catfile($manifest_dir, $entry);
+
+            my $data = read_ini($file);
+            my $default_sec = $data->{default};
+
+            my $account = $default_sec->{account}
+                or err "$file: no account found for package $name.\n";
+
+            upgrade_target($ctx, $account, $name, $file);
+        }
+    }
+
+    closedir $dh
+        or err "failed to close directory $manifest_dir: $!\n";
 }
