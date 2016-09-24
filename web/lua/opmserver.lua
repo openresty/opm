@@ -1190,6 +1190,13 @@ do
                 i = i + 1
                 bits[i] = ver2pg_array(pkg_ver)
 
+            elseif op == "gt" then
+                i = i + 1
+                bits[i] = " and version_v > "
+
+                i = i + 1
+                bits[i] = ver2pg_array(pkg_ver)
+
             else
                 return nil, nil, "bad op argument value: " .. op
             end
@@ -1229,7 +1236,16 @@ do
             local spec
 
             if op then
-                spec = (op == 'ge' and ' >= ' or ' = ') .. pkg_ver
+                if op == 'ge' then
+                    spec = ' >= ' .. pkg_ver
+
+                elseif op == 'gt' then
+                    spec = ' > ' .. pkg_ver
+
+                else
+                    spec = ' = ' .. pkg_ver
+                end
+
             else
                 spec = ""
             end

@@ -345,6 +345,9 @@ sub process_cycle () {
                     } elsif ($op eq '=') {
                         $op_arg = "eq";
 
+                    } elsif ($op eq '>') {
+                        $op_arg = "gt";
+
                     } else {
                         $errstr = "bad dependency operator: $op";
                         warn $errstr;
@@ -638,7 +641,7 @@ sub parse_deps {
                 return undef, "$file: bad dependency name: $full_name";
             }
 
-            if ($op !~ /^ (?: >= | = ) $/x) {
+            if ($op !~ /^ (?: >= | = | > ) $/x) {
                 return undef, "$file: bad dependency version comparison"
                               . " operator in \"$item\": $op";
             }
