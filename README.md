@@ -192,6 +192,7 @@ One example `dist.ini` file looks like below for OpenResty's
 [lua-resty-core](https://github.com/openresty/lua-resty-core) library:
 
 ```ini
+# distribution config for opm packaging
 name=lua-resty-core
 abstract=New FFI-based Lua API for the ngx_lua module
 author=Yichun "agentzh" Zhang (agentzh)
@@ -201,7 +202,7 @@ lib_dir=lib
 doc_dir=lib
 repo_link=https://github.com/openresty/lua-resty-core
 main_module=lib/resty/core/base.lua
-requires = luajit, openresty = 1.11.2.1, openresty/lua-resty-lrucache
+requires = luajit, openresty = 1.11.2.1, openresty/lua-resty-lrucache >= 0.04
 ```
 
 As we can see, the `dist.ini` file is using the popular [INI file format](https://en.wikipedia.org/wiki/INI_file).
@@ -279,7 +280,7 @@ of fully qualified package names that match the package short names.
 * Add plugin mechanisms to `opm build` (similar to Perl's Dist::Zilla packaging framework).
 * Add a web site for opm.openresty.org (similar to search.cpan.org).
 * Add support for Lua C modules and LuaJIT FFI modules with standalone C libraries.
-* Add (limited) support for LuaRocks via the special namespace `luarocks`, for example,
+* Add (limited) support for LuaRocks via the special name space `luarocks`, for example,
 
 ```bash
 opm get luarocks/foo
