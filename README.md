@@ -9,7 +9,9 @@ Table of Contents
 * [Name](#name)
 * [Status](#status)
 * [Synopsis](#synopsis)
+* [Description](#description)
 * [Prerequisites](#prerequisites)
+    * [For opm](#for-opm)
 * [TODO](#todo)
 * [Author](#author)
 * [Copyright and License](#copyright-and-license)
@@ -80,11 +82,58 @@ opm build
 opm upload
 ```
 
+Description
+===========
+
+`opm` is the official OpenResty package management system kinda similar to
+Perl's CPAN.
+
+We provide both the `opm` client-side command-line utility and
+the server-side application for the central package repository in this
+GitHub code repository.
+
+The `opm` command-line utility can be used by OpenResty users to download
+packages published on the central `opm` server (i.e., `opm.openresty.org`).
+It can also be used to package and upload the OpenResty package to the server
+for package authors and maintainers. You can find the source of `opm` under
+the `bin/` directory. It is currently implemented as a standalone Perl script.
+
+The server side web application is built upon OpenResty and written in Lua.
+You can find the server code under the `web/` directory.
+
+Unlike many other package management systems like `cpan`, `luarocks`, `npm`,
+or `pip`, `opm` adopts a package naming discipline similar to `github`, that
+is, every package name should be qualified by a publisher ID, as in
+`agentzh/lua-resty-foo` where `agentzh` is the publisher ID while `lua-resty-foo`
+is the package name itself. This naming requirement voids the temptation of
+occupying good package names and also allows multiple same-name libraries to
+coexist in the same central server repository. It is up to the user to decide
+which library to install (or even install multiple forks of the same library
+in different projects of hers). For simplicity, we simply map the GitHub
+user IDs and organization IDs to the publisher IDs for `opm`. For this reason,
+we use the GitHub personal access tokens (or oauth tokens) to authenticate
+our package publishers. This also eliminates the sign-up process for `opm`
+package authors altogether.
+
+`opm` currently only supports pure Lua libraries but we will add support for
+Lua libraries in pure C or with some C components very soon. The vision is
+to also add support for redistributing 3rd-party NGINX C modules as dynamic
+NGINX modules via `opm` in the future. The OpenResty world consists of various
+different kinds of "modules" after all.
+
+We also have plans to allow the user to install LuaRocks packages via `opm`
+through the special user ID `luarocks`. Although it poses a risk of installing
+an OpenResty-agnostic Lua module which may block the NGINX worker processes
+horribly on network I/O. But as the developers of `opm`, we always like choices,
+especially choices given to our users.
+
+[Back to TOC](#table-of-contents)
+
 Prerequisites
 =============
 
-opm
----
+For opm
+-------
 
 You just need `perl`, `tar`, and `curl` to run the `opm` tool. Ensure that your perl is not
 too old (should be at least `5.10.1`), and your curl supports SNI.
