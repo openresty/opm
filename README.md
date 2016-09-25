@@ -221,9 +221,9 @@ github_account=agentzh
 # you should NOT assign any other scopes to your token due to security considerations.
 github_token=0123456789abcdef0123456789abcdef01234567
 
-# the opm central server for uploading openresty packages.
-upload_server_link=https://opm.openresty.org/api/pkg/upload
-download_server_link=https://opm.openresty.org/api/pkg/fetch
+# the opm central servers for uploading openresty packages.
+upload_server=https://opm.openresty.org
+download_server=https://opm.openresty.org
 ```
 
 Basically, the `opm build` command just needs the `github_account` setting from this file. Other fields are needed
