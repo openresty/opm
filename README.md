@@ -10,6 +10,7 @@ Table of Contents
 * [Status](#status)
 * [Synopsis](#synopsis)
 * [Description](#description)
+* [Usage](#usage)
 * [Prerequisites](#prerequisites)
     * [For opm](#for-opm)
 * [TODO](#todo)
@@ -126,6 +127,54 @@ through the special user ID `luarocks`. Although it poses a risk of installing
 an OpenResty-agnostic Lua module which may block the NGINX worker processes
 horribly on network I/O. But as the developers of `opm`, we always like choices,
 especially choices given to our users.
+
+[Back to TOC](#table-of-contents)
+
+Usage
+=====
+
+```
+opm [options] command package...
+
+Options:
+    -h
+    --help              Print this help.
+
+    --cwd               Install into the current working directory under ./resty_modules/
+                        instead of the system-wide OpenResty installation tree contaning
+                        this tool.
+
+Commands:
+    build               Build from the current working directory a package tarball ready
+                        for uploading to the server.
+
+    info PACKAGE...     Output the detailed information (or meta data) about the specified
+                        packages.  Short package names like "lua-resty-lock" are acceptable.
+
+    get PACKAGE...      Fetch and install the specified packages. Fully qualified package
+                        names like "openresty/lua-resty-lock" are required. One can also
+                        specify a version constraint like "=0.05" and ">=0.01".
+
+    list                List all the installed packages. Both the package names and versions
+                        are displayed.
+
+    remove PACKAGE...   Remove (or uninstall) the specified packages. Short package names
+                        like "lua-resty-lock" are acceptable.
+
+    server-build        Build a final package tarball ready for distribution on the server.
+                        This command is usually used by the server to verify the uploaded
+                        package tarball.
+
+    update              Update all the installed packages to their latest version from
+                        the server.
+
+    upgrade PACKAGE...  Upgrade the packages specified by names to the latest version from
+                        the server. Short package names like "lua-resty-lock" are acceptable.
+
+    upload              Upload the package tarball to the server. This command always invokes
+                        the build command automatically right before uploading.
+
+```
 
 [Back to TOC](#table-of-contents)
 
