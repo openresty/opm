@@ -119,6 +119,10 @@ we use the GitHub personal access tokens (or oauth tokens) to authenticate
 our package publishers. This also eliminates the sign-up process for `opm`
 package authors altogether.
 
+`opm` has built-in support for the `restydoc` tool, that is, the documentation
+of the packages installed via `opm` is already indexed by `restydoc` and can
+be viewed directly on the terminal with the `restydoc` tool.
+
 `opm` currently only supports pure Lua libraries but we will add support for
 Lua libraries in pure C or with some C components very soon. The vision is
 to also add support for redistributing 3rd-party NGINX C modules as dynamic
