@@ -11,6 +11,9 @@ Table of Contents
 * [Synopsis](#synopsis)
 * [Description](#description)
 * [Usage](#usage)
+* [Author Workflow](#author-workflow)
+* [File dist.ini](#file-distini)
+* [File .opmrc](#file-opmrc)
 * [Prerequisites](#prerequisites)
     * [For opm](#for-opm)
 * [TODO](#todo)
@@ -20,7 +23,7 @@ Table of Contents
 Status
 ======
 
-This is still under early active development and it is not complete nor usable yet.
+This is still under early active development and it is not complete nor fully usable yet.
 
 Check back often ;)
 
@@ -178,6 +181,79 @@ Commands:
 
 [Back to TOC](#table-of-contents)
 
+Author Workflow
+===============
+
+The package author should put a meta-data file named `dist.ini` on the top-level of the Lua library source tree.
+This file is used by the `opm build` command to build and package up your library into a tarball file which can be
+later uploaded to the central package server via the `opm upload` command.
+
+One example `dist.ini` file looks like below for OpenResty's
+[lua-resty-core](https://github.com/openresty/lua-resty-core) library:
+
+```ini
+name=lua-resty-core
+abstract=New FFI-based Lua API for the ngx_lua module
+author=Yichun "agentzh" Zhang (agentzh)
+is_original=yes
+license=2bsd
+lib_dir=lib
+doc_dir=lib
+repo_link=https://github.com/openresty/lua-resty-core
+main_module=lib/resty/core/base.lua
+requires = luajit, openresty = 1.11.2.1, openresty/lua-resty-lrucache
+```
+
+As we can see, the `dist.ini` file is using the popular [INI file format](https://en.wikipedia.org/wiki/INI_file).
+Most of the fields in this example should be self-explanatory. For detailed documentation for the fields available
+in `dist.ini`, please check out the [File dist.ini](#file-dist-ini) section.
+
+The `opm build` command also reads and extracts information from the configuration file `.opmrc` under the current
+system user's home directory (i.e., with the file path `~/.opmrc`). If the file does not exist, `opm build` will
+automatically generates a boilerplate file in that path. One sample `~/.opmrc` file looks like this.
+
+```ini
+# your github account name (either your github user name or github organization that you owns)
+github_account=agentzh
+
+# you can generate a github personal access token from the web UI: https://github.com/settings/tokens
+# IMPORTANT! you are required to assign the scopes "user:email" and "read:org" to your github token.
+# you should NOT assign any other scopes to your token due to security considerations.
+github_token=0123456789abcdef0123456789abcdef01234567
+
+# the opm central server for uploading openresty packages.
+upload_server_link=https://opm.openresty.org/api/pkg/upload
+download_server_link=https://opm.openresty.org/api/pkg/fetch
+```
+
+Basically, the `opm build` command just needs the `github_account` setting from this file. Other fields are needed
+by the `opm upload` command that tries to upload the packaged tarball onto the remote package server. You can either
+use your own GitHub login name (which is `agentzh` in this example), or a GitHub organization name that you owns
+(i.e., having the `admin` permission to it).
+
+After `opm build` successfully generates a `.tar.gz` file under the current working directory, the author can use
+the `opm upload` command to upload that file to the remote server. To ensure consistency, `opm upload` automatically
+runs `opm build` itself right before attempting the uploading operation. The central package server (`opm.openresty.org`
+in this case) calls the GitHub API behind the scene to validate the author's identify. Thus the author needs to
+provide his GitHub personal access token in her `~/.opmrc` file. Only the `user:email` and `read:org` permissions
+(or `scopes` in the GitHub terms) need to be assigned to this access token.
+
+[Back to TOC](#table-of-contents)
+
+File dist.ini
+=============
+
+TODO
+
+[Back to TOC](#table-of-contents)
+
+File .opmrc
+===========
+
+TODO
+
+[Back to TOC](#table-of-contents)
+
 Prerequisites
 =============
 
@@ -192,9 +268,14 @@ too old (should be at least `5.10.1`), and your curl supports SNI.
 TODO
 ====
 
-* Add `opm search <pattern>` command.
-* Add `opm files <package>` command.
-* Add `opm whatprovides <package>` command.
+* Add rate limiting to the GitHub API on the package server.
+* Add automatic email notification for the package processing results on the package server.
+* When the package names provided to `opm get` do not have a publisher ID prefix, we should prompt with a list
+of fully qualified package names that match the package short names.
+* Add `opm doctor` command to check if there is any inconsistency in the current opm package installation tree.
+* Add `opm search <pattern>` command to search package names with a user-supplied pattern.
+* Add `opm files <package>` command to list all the files in the specified package.
+* Add `opm whatprovides <package>` command to find out which package the specified file belongs to.
 * Add plugin mechanisms to `opm build` (similar to Perl's Dist::Zilla packaging framework).
 * Add a web site for opm.openresty.org (similar to search.cpan.org).
 * Add support for Lua C modules and LuaJIT FFI modules with standalone C libraries.
