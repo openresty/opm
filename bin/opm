@@ -1963,6 +1963,9 @@ Commands:
     remove PACKAGE...   Remove (or uninstall) the specified packages. Short package names
                         like "lua-resty-lock" are acceptable.
 
+    search PATTERN      Search on the server for packages matching the user pattern in their
+                        names or abstracts.
+
     server-build        Build a final package tarball ready for distribution on the server.
                         This command is usually used by the server to verify the uploaded
                         package tarball.
