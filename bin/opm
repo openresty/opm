@@ -1874,6 +1874,10 @@ sub do_update {
 sub do_search {
     my $query = shift;
 
+    if (!$query) {
+        err "no query specified.\n";
+    }
+
     if ($query =~ /[^-.\w]/) {
         err "bad query: $query\n";
     }
