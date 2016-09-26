@@ -281,8 +281,6 @@ TODO
 
 * Add rate limiting to the GitHub API on the package server.
 * Add automatic email notification for the package processing results on the package server.
-* When the package names provided to `opm get` do not have a publisher ID prefix, we should prompt with a list
-of fully qualified package names that match the package short names.
 * Add `opm doctor` command to check if there is any inconsistency in the current opm package installation tree.
 * Add `opm files <package>` command to list all the files in the specified package.
 * Add `opm whatprovides <package>` command to find out which package the specified file belongs to.

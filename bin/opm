@@ -58,6 +58,7 @@ sub create_stub_rc_file ($);
 sub read_ini ($);
 sub init_installation_ctx ($);
 sub cmp_version ($$);
+sub search_pkg_name ($$);
 
 GetOptions("h|help",          \(my $help),
            "cwd",             \(my $install_into_cwd))
@@ -133,7 +134,7 @@ sub do_get {
         err "no packages specified for fetch.\n";
     }
 
-    my $deps = parse_deps(\@_, "(command-line argument)");
+    my $deps = parse_deps(\@_, "(command-line argument)", 1);
 
     #warn Dumper($deps);
 
@@ -908,13 +909,11 @@ sub install_target ($$) {
         if ($ctx->{level} == 0) {
             if ($name =~ /^(?:luajit|openresty)/i) {
                 err "you cannot install $name via opm.\n";
-
-            } else {
-                # TODO do package search remotely
-                err "bad package name; you must specify an account prefix, ",
-                    "like \"openresty/lua-resty-lrucache\".\n"
             }
 
+            warn "ERROR: package name $name is not prefixed by ",
+                 "an account name.\nFinding candidates...\n";
+            search_pkg_name($ctx, $name);
             return;
         }
 
@@ -1890,7 +1889,7 @@ sub do_search {
         err "bad query: $query\n";
     }
 
-    if (length $query >= 128) {
+    if (length $query > 128) {
         err "query too long: ", length $query, " bytes.\n";
     }
 
@@ -1925,6 +1924,30 @@ sub do_search {
     }
 
     # TODO highlight hits
+    print $out;
+}
+
+sub search_pkg_name ($$) {
+    my ($ctx, $name) = @_;
+
+    my $download_url = $ctx->{download_url} or die;
+
+    my $url = "$download_url/api/pkg/search/name?q=$name";
+    my $out = `curl -i -sS '$url' 2>&1`;
+    my $status;
+    if ($? == 0 && $out =~ m{^ HTTP/1\.\d \s+ (\d+) \b}ix) {
+        $status = $1;
+
+    } else {
+        err "failed to find package: server error.\n";
+    }
+
+    $out =~ s/.*?\r?\n\r?\n//s;
+
+    if ($status != 200) {
+        err "failed to find package $name on server: $out";
+    }
+
     print $out;
 }
 

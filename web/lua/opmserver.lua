@@ -1245,6 +1245,10 @@ do
 
         local ctx = {}
 
+        if not query or query == "" or #query > 128 then
+            return log_and_out_err(ctx, 400, "bad search query value")
+        end
+
         if not re_find(query, [[^[-.\w]+$]], "jo") then
             return log_and_out_err(ctx, 400, "bad search query value")
         end
@@ -1315,6 +1319,87 @@ do
         end
 
         ngx_print(results)
+    end
+
+
+    function _M.do_pkg_name_search()
+        local query = unescape_uri(ngx_var.arg_q)
+
+        local ctx = {}
+
+        if not query or query == "" or #query > 256 then
+            return log_and_out_err(ctx, 400, "bad search query value")
+        end
+
+        if not re_find(query, [[^[-\w]+$]], "jo") then
+            return log_and_out_err(ctx, 400, "bad search query value")
+        end
+
+        local sql = "select abstract, package_name, users.login as uploader_name"
+                    .. ", orgs.login as org_name"
+                    .. " from (select first(abstract) as abstract"
+                    .. ", package_name, org_account, uploader"
+                    .. " from uploads"
+                    .. " where package_name = " .. quote_sql_str(query)
+                    .. " group by package_name, uploader, org_account) as tmp"
+                    .. " left join users on tmp.uploader = users.id"
+                    .. " left join orgs on tmp.org_account = orgs.id"
+                    .. " order by users.followers desc limit 50"
+
+        local rows = query_db(sql)
+        -- say(encode_json(rows))
+
+        if #rows == 0 then
+            ngx.status = 404
+            say("package not found.")
+            return ngx.exit(404)
+        end
+
+        tab_clear(results)
+
+        local i = 0
+        for _, row in ipairs(rows) do
+            local uploader = row.uploader
+            local org = row.org_name
+            local pkg = row.package_name
+
+            local account
+            if org and org ~= ngx.null then
+                account = org
+
+            else
+                account = uploader
+            end
+
+            i = i + 1
+            results[i] = account
+
+            i = i + 1
+            results[i] = "/"
+
+            i = i + 1
+            results[i] = pkg
+
+            local len = #account + #pkg + 1
+
+            if len < 50 then
+                len = 50 - len
+            else
+                len = 4
+            end
+
+            i = i + 1
+            results[i] = str_rep(" ", len)
+
+            i = i + 1
+            results[i] = row.abstract
+
+            i = i + 1
+            results[i] = "\n"
+        end
+
+        ngx_print(results)
+
     end
 end
 
