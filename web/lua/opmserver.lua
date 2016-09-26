@@ -291,29 +291,8 @@ function _M.do_upload()
         db_insert_user_verified_email(ctx, user_id, verified_email)
     end
 
+    local quoted_pkg_name = quote_sql_str(pkg_name)
     local ver_v = ver2pg_array(pkg_version)
-
-    local pkg_id
-    do
-        local sql = "select id from packages where name = "
-                    .. quote_sql_str(pkg_name)
-
-        local rows = query_db(sql)
-
-        if #rows == 0 then
-            dd("no package registered in db yet.")
-
-            local sql = "insert into packages (name) values ("
-                        .. quote_sql_str(pkg_name) .. ") returning id"
-
-            local res = query_db(sql)
-            pkg_id = res[1].id
-
-        else
-            dd("package name found in db.")
-            pkg_id = assert(rows[1].id)
-        end
-    end
 
     if new_org or (new_user and login == account) then
         dd("new account, no need to check duplicate uploads")
@@ -326,27 +305,25 @@ function _M.do_upload()
         if login == account then
             -- user account
             assert(user_id)
-            assert(pkg_id)
 
             sql = "select version_s, created_at from uploads where uploader = "
                   .. user_id  -- user_id is from our own db
                   .. " and org_account is null and version_v = "
                   .. ver_v
-                  .. " and package = " .. pkg_id  -- pkg_id is from our own db
+                  .. " and package_name = " .. quoted_pkg_name
                   .. " and failed != true"
 
         else
             -- org account
             assert(user_id)
             assert(org_id)
-            assert(pkg_id)
 
             sql = "select version_s, created_at from uploads where uploader = "
                   .. user_id
                   .. " and org_account = "
                   .. org_id
                   .. " and version_v = " .. ver_v
-                  .. " and package = " .. pkg_id
+                  .. " and package_name = " .. quoted_pkg_name
                   .. " and failed != true"
         end
 
@@ -388,8 +365,8 @@ function _M.do_upload()
 
     -- insert the new uploaded task to the uplaods database.
 
-    local sql1 = "insert into uploads (uploader, size, package, orig_checksum, "
-                  .. "version_v, version_s, client_addr"
+    local sql1 = "insert into uploads (uploader, size, package_name, "
+                 .. "orig_checksum, version_v, version_s, client_addr"
 
     local sql2 = ""
     if login ~= account then
@@ -397,7 +374,7 @@ function _M.do_upload()
     end
 
     local sql3 = ") values (" .. user_id .. ", " .. size
-                 .. ", " .. pkg_id  -- from our own db
+                 .. ", " .. quoted_pkg_name  -- from our own db
                  .. ", " .. quote_sql_str(user_md5)
                  .. ", " .. ver_v
                  .. ", " .. quote_sql_str(pkg_version)
@@ -905,11 +882,10 @@ end
 
 -- only for internal use in util/opm-pkg-indexer.pl
 function _M.do_incoming()
-    local sql = "select uploads.id as id, packages.name as name,"
+    local sql = "select uploads.id as id, uploads.package_name as name,"
                 .. " version_s, orig_checksum,"
                 .. " users.login as uploader, orgs.login as org_account"
                 .. " from uploads"
-                .. " left join packages on uploads.package = packages.id"
                 .. " left join users on uploads.uploader = users.id"
                 .. " left join orgs on uploads.org_account = orgs.id"
                 .. " where uploads.failed = false and uploads.indexed = false"
@@ -1125,21 +1101,14 @@ do
 
 
     function pkg_fetch(ctx, account, pkg_name, op, pkg_ver, latest)
-        local sql = "select id from packages where name = "
-                    .. quote_sql_str(pkg_name)
-        local rows = query_db(sql)
-        if #rows == 0 then
-            return nil, nil,
-                   "the package name " .. pkg_name .. " never seen before"
-        end
-
-        local pkg_id = assert(rows[1].id)
+        local quoted_pkg_name = quote_sql_str(pkg_name)
         local quoted_account = quote_sql_str(account)
 
         local user_id, org_id
 
         local sql = "select id from users where login = " .. quoted_account
-        rows = query_db(sql)
+
+        local rows = query_db(sql)
 
         if #rows == 0 then
             sql = "select id from orgs where login = " .. quoted_account
@@ -1168,10 +1137,10 @@ do
 
         i = i + 1
         bits[i] = " from uploads where indexed = true"
-                  .. " and package = "
+                  .. " and package_name = "
 
         i = i + 1
-        bits[i] = pkg_id
+        bits[i] = quoted_pkg_name
 
         -- ngx.log(ngx.WARN, "op = ", op, ", pkg ver = ", pkg_ver)
 

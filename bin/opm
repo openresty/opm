@@ -245,6 +245,8 @@ sub do_build ($) {
         $RepoLink = $repo_link;
     }
 
+=begin comment
+
     if (!$server_build) {
         my $out = `curl -sS -I $repo_link 2>&1`;
         if ($out =~ m{^ HTTP/1\.\d \s+ (\d+) \b}ix) {
@@ -257,6 +259,10 @@ sub do_build ($) {
             err "$dist_file: bad repo_likn $repo_link: $out\n";
         }
     }
+
+=end comment
+
+=cut
 
     my $version = delete $default_sec->{version};
 

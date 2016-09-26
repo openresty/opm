@@ -76,14 +76,6 @@ create table access_tokens (
     updated_at timestamp with time zone not null default now()
 );
 
-drop table if exists packages cascade;
-
--- for package names
-create table packages (
-    id serial primary key,
-    name varchar(128) not null unique
-);
-
 drop table if exists uploads cascade;
 
 -- for user module uploads
@@ -95,7 +87,7 @@ create table uploads (
     orig_checksum uuid not null,  -- MD5 checksum for the original pkg
     final_checksum uuid,          -- MD5 checksum for the final pkg
     size integer not null,
-    package integer references packages(id),
+    package_name varchar(256) not null,
     abstract text,
 
     version_v integer[] not null,
