@@ -1637,6 +1637,10 @@ sub do_list {
 }
 
 sub do_info {
+    if (@_ == 0) {
+        err "no packages specified for info.\n";
+    }
+
     my $install_dir = get_install_dir();
 
     my $manifest_dir = File::Spec->catfile($install_dir, "manifest");
@@ -1708,6 +1712,10 @@ _EOC_
 }
 
 sub do_upgrade {
+    if (@_ == 0) {
+        err "no packages specified for upgrade.\n";
+    }
+
     my $ctx = init_installation_ctx(1);
     my $manifest_dir = $ctx->{manifest_dir};
 
