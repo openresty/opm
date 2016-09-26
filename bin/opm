@@ -289,9 +289,16 @@ sub do_build ($) {
         if ($ndeps >= $MAX_DEPS) {
             err "$dist_file: requires: too many dependencies: $ndeps\n";
         }
-    }
 
-    # TODO check validity of the dependences.
+        if (!$server_build) {
+            my $ctx = init_installation_ctx(0);
+            $ctx->{level} = 1;
+
+            for my $dep (@$deps) {
+                install_target($ctx, $dep);
+            }
+        }
+    }
 
     my $lib_dir = delete $default_sec->{lib_dir};
 
