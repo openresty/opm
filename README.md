@@ -36,6 +36,9 @@ For library users:
 # show usage
 opm --help
 
+# search package names and abstracts with the user pattern "lock".
+opm search lock
+
 # account is a github account (either a github user or a github org);
 # lua-resty-foo is the library name under that github account.
 opm get some_account/lua-resty-foo
@@ -278,7 +281,6 @@ TODO
 * When the package names provided to `opm get` do not have a publisher ID prefix, we should prompt with a list
 of fully qualified package names that match the package short names.
 * Add `opm doctor` command to check if there is any inconsistency in the current opm package installation tree.
-* Add `opm search <pattern>` command to search package names with a user-supplied pattern.
 * Add `opm files <package>` command to list all the files in the specified package.
 * Add `opm whatprovides <package>` command to find out which package the specified file belongs to.
 * Add plugin mechanisms to `opm build` (similar to Perl's Dist::Zilla packaging framework).

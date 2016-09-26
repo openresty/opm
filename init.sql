@@ -106,8 +106,41 @@ create table uploads (
     failed boolean not null default FALSE,
     indexed boolean not null default FALSE,
 
+    ts_idx tsvector,
+
     created_at timestamp with time zone not null default now(),
     updated_at timestamp with time zone not null default now()
 );
 
--- TODO create indexes to speed up queries in the opmserver web app.
+drop function if exists uploads_trigger() cascade;
+
+create function uploads_trigger() returns trigger as $$
+begin
+      new.ts_idx :=
+         setweight(to_tsvector('pg_catalog.english', coalesce(new.package_name,'')), 'A')
+         || setweight(to_tsvector('pg_catalog.english', coalesce(new.abstract,'')), 'D');
+      return new;
+end
+$$ language plpgsql;
+
+create trigger tsvectorupdate before insert or update
+    on uploads for each row execute procedure uploads_trigger();
+
+create index ts_idx on uploads using gin(ts_idx);
+
+update uploads set package_name = package_name;
+
+drop function if exists first_agg(anyelement, anyelement) cascade;
+
+create or replace function first_agg(anyelement, anyelement)
+returns anyelement language sql immutable strict as $$
+        select $1;
+$$;
+
+create aggregate first (
+        sfunc    = first_agg,
+        basetype = anyelement,
+        stype    = anyelement
+);
+
+-- TODO create more indexes to speed up queries in the opmserver web app.

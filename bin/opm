@@ -110,6 +110,9 @@ for ($cmd) {
     } elsif ($_ eq 'update') {
         do_update();
 
+    } elsif ($_ eq 'search') {
+        do_search(shift @ARGV);
+
     } else {
         warn "ERROR: unknown command: $cmd\n\n";
         usage(1);
@@ -256,7 +259,7 @@ sub do_build ($) {
                     "got HTTP status code $status.\n";
             }
         } else {
-            err "$dist_file: bad repo_likn $repo_link: $out\n";
+            err "$dist_file: bad repo_link $repo_link: $out\n";
         }
     }
 
@@ -1866,6 +1869,51 @@ sub do_update {
 
     closedir $dh
         or err "failed to close directory $manifest_dir: $!\n";
+}
+
+sub do_search {
+    my $query = shift;
+
+    if ($query =~ /[^-.\w]/) {
+        err "bad query: $query\n";
+    }
+
+    if (length $query >= 128) {
+        err "query too long: ", length $query, " bytes.\n";
+    }
+
+    my ($rcfile, $data) = get_rc_file();
+
+    my $default_sec = delete $data->{default};
+
+    my $download_url = delete $default_sec->{download_server};
+    if (!$download_url) {
+        err "$rcfile: no download_server specified.\n";
+    }
+
+    if ($download_url !~ m{^https?://}) {
+        err "$rcfile: the value of download_server must be ",
+            "led by https:// or http://.\n";
+    }
+
+    my $url = "$download_url/api/pkg/search?q=$query";
+    my $out = `curl -i -sS '$url' 2>&1`;
+    my $status;
+    if ($? == 0 && $out =~ m{^ HTTP/1\.\d \s+ (\d+) \b}ix) {
+        $status = $1;
+
+    } else {
+        err "failed to search: server error.\n";
+    }
+
+    $out =~ s/.*?\r?\n\r?\n//s;
+
+    if ($status != 200) {
+        err "failed to search on server: $out";
+    }
+
+    # TODO highlight hits
+    print $out;
 }
 
 sub err (@) {
