@@ -1258,7 +1258,7 @@ do
                     .. quote_sql_str(query) .. ") q"
                     .. " where indexed = true and ts_idx @@ q"
                     .. " group by package_name, uploader, org_account"
-                    .. " order by rank desc limit 20) as tmp"
+                    .. " order by rank desc limit 50) as tmp"
                     .. " left join users on tmp.uploader = users.id"
                     .. " left join orgs on tmp.org_account = orgs.id"
 
