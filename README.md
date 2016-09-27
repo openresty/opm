@@ -264,7 +264,12 @@ provide his GitHub personal access token in her `~/.opmrc` file. Only the `user:
 File dist.ini
 =============
 
-The `dist.ini` file contains the following keys (or properties) in the default top-level section:
+The `dist.ini` file specifies the meta data of a package and is used by `opm build`
+to generate a tarball that is ready to upload to the remote pacakge server. This
+file should sit at the top of the library or module source tree.
+
+This file uses the [INI file format](https://en.wikipedia.org/wiki/INI_file). It
+contains the following keys (or properties) in the default top-level section:
 
 [Back to TOC](#table-of-contents)
 
