@@ -1,0 +1,19 @@
+.indexed {
+    color: green;
+}
+
+.pending {
+    color: purple;
+}
+
+.failed {
+    color: red;
+}
+
+table.recent {
+    border: 1px solid black;
+}
+
+td {
+   padding: 10px;
+}

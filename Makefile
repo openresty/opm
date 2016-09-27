@@ -3,6 +3,17 @@ webpath = $(abspath web/)
 openresty = openresty
 opm = $(abspath bin/opm) --cwd
 opm_pkg_indexer = $(abspath util/opm-pkg-indexer.pl) -i 1
+tt2_files := $(sort $(wildcard web/templates/*.tt2))
+templates_lua = web/lua/opmserver/templates.lua
+
+.DELETE_ON_ERRORS: $(templates_lua)
+
+.PHONY: all
+all: $(templates_lua)
+
+$(templates_lua): $(tt2_files)
+	mkdir -p web/lua/opmserver/
+	lemplate --compile $^ > $@
 
 .PHONY: test
 test: | initdb reload
@@ -19,14 +30,15 @@ test: | initdb reload
 	PATH=$$PWD/bin:$$PATH time $(opm_pkg_indexer)
 	$(opm) remove openresty/lua-resty-lrucache
 	$(opm) get openresty/lua-resty-core
+	curl -H 'Server: opm.openresyt.org' http://localhost:8080/
 
 .PHONY: run
-run:
+run: all
 	mkdir -p $(webpath)/logs
 	cd web && $(openresty) -p $$PWD/
 
 .PHONY: reload
-reload:
+reload: all
 	$(openresty) -p $(webpath)/ -t
 	test -f $(pidfile)
 	rm -f $(webpath)/logs/error.log

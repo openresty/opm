@@ -11,6 +11,7 @@ local ngx = require "ngx"
 local pgmoon = require "pgmoon"
 local tab_clear = require "table.clear"
 local limit_req = require "resty.limit.req"
+local templates = require "opmserver.templates"
 
 
 local re_find = ngx.re.find
@@ -1465,6 +1466,23 @@ do
         ngx_print(results)
 
     end
+end
+
+
+function _M.do_index_page()
+    local sql = [[select package_name, version_s, abstract, indexed]]
+                .. [[, failed, users.login as uploader_name]]
+                .. [[, orgs.login as org_name]]
+                .. [[, uploads.created_at as created_at]]
+                .. [[ from uploads]]
+                .. [[ left join users on uploads.uploader = users.id]]
+                .. [[ left join orgs on uploads.org_account = orgs.id]]
+                .. [[ order by uploads.updated_at desc limit 100]]
+
+    local rows = query_db(sql)
+
+    local html = templates.process("index.tt2", { recent_uploads = rows })
+    say(html)
 end
 
 
