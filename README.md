@@ -213,15 +213,15 @@ One example `dist.ini` file looks like below for OpenResty's
 
 ```ini
 # distribution config for opm packaging
-name=lua-resty-core
-abstract=New FFI-based Lua API for the ngx_lua module
-author=Yichun "agentzh" Zhang (agentzh)
-is_original=yes
-license=2bsd
-lib_dir=lib
-doc_dir=lib
-repo_link=https://github.com/openresty/lua-resty-core
-main_module=lib/resty/core/base.lua
+name = lua-resty-core
+abstract = New FFI-based Lua API for the ngx_lua module
+author = Yichun "agentzh" Zhang (agentzh)
+is_original = yes
+license = 2bsd
+lib_dir = lib
+doc_dir = lib
+repo_link = https://github.com/openresty/lua-resty-core
+main_module = lib/resty/core/base.lua
 requires = luajit, openresty = 1.11.2.1, openresty/lua-resty-lrucache >= 0.04
 ```
 
@@ -289,7 +289,7 @@ abstract
 Abstract for the current package.
 
 ```ini
-abstract=New FFI-based Lua API for the ngx_lua module
+abstract = New FFI-based Lua API for the ngx_lua module
 ```
 
 This key is mandatory.
