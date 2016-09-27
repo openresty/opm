@@ -43,7 +43,7 @@ my %Licenses = (
     proprietary => 'Proprietary',
 );
 
-my $SpecialDepPat = qr/^(?:openresty|luajit|ngx_(?:http_)?lua)$/;
+my $SpecialDepPat = qr/^(?:openresty|luajit|ngx_(?:http_)?lua|nginx)$/;
 
 sub err (@);
 sub shell (@);
@@ -61,6 +61,7 @@ sub read_ini ($);
 sub init_installation_ctx ($);
 sub cmp_version ($$);
 sub search_pkg_name ($$);
+sub test_version_spec ($$$$$);
 
 GetOptions("h|help",          \(my $help),
            "cwd",             \(my $install_into_cwd))
@@ -929,8 +930,67 @@ sub install_target ($$) {
         # nested, resolved as a true dependency.
 
         if ($name =~ $SpecialDepPat) {
-            # TODO check LuaJIT and OpenResty versions.
-            return;
+            my $resty = $ctx->{resty};
+
+            if ($name eq 'luajit') {
+                my $out = `$resty -e 'print(jit.version)'`;
+                if ($? != 0 || !defined $out || $out !~ /^LuaJIT (\d+\.\d+\.\d+)/) {
+                    err "$name is required but is not available ",
+                        "according to $resty: ", $out // '';
+                }
+
+                my $luajit_ver = $1;
+                test_version_spec($name, $luajit_ver, $op, $ver, $resty);
+                return;
+            }
+
+            if ($name eq 'nginx') {
+                my $out = `$resty -e 'print(ngx.config.nginx_version)'`;
+                if ($? != 0 || !defined $out || $out !~ /^(\d+)(\d{3})(\d{3})$/) {
+                    err "$name is required but is not available ",
+                        "according to $resty: ", $out // '';
+                }
+
+                my $nginx_ver = join ".", $1 + 0, $2 + 0, $3 + 0;
+                #die "nginx version: $nginx_ver";
+                test_version_spec($name, $nginx_ver, $op, $ver, $resty);
+                return;
+            }
+
+            if ($name =~ /^ngx_(?:http_)?lua$/) {
+                my $out = `$resty -e 'print(ngx.config.ngx_lua_version)'`;
+                if ($? != 0 || !defined $out || $out !~ /^(\d{4,})$/) {
+                    err "$name is required but is not available ",
+                        "according to $resty: ", $out // '';
+                }
+
+                my $v = $1;
+                my $v1 = $v % 1000;
+                my $tmp = int($v / 1000);
+                my $v2 = $tmp % 1000;
+                $tmp = int($tmp / 1000);
+                my $v3 = $tmp % 1000;
+
+                my $ngx_lua_ver = "$v3.$v2.$v1";
+                #die "ngx_lua version: $ngx_lua_ver";
+                test_version_spec($name, $ngx_lua_ver, $op, $ver, $resty);
+                return;
+            }
+
+            if ($name eq 'openresty') {
+                my $out = `$resty -v 2>&1`;
+                if ($? != 0 || !defined $out || $out !~ m!\bopenresty/(\d+(?:\.\d+){3})!) {
+                    err "$name is required but is not available ",
+                        "according to $resty: ", $out // '';
+                }
+
+                my $openresty_ver = $1;
+                #die "openresty version: $openresty_ver";
+                test_version_spec($name, $openresty_ver, $op, $ver, $resty);
+                return;
+            }
+
+            die "unknown name: $name";
 
         } else {
             err "bad package name; you must specify an account prefix, ",
@@ -1789,6 +1849,11 @@ sub init_installation_ctx ($) {
         make_path $manifest_dir;
     }
 
+    my $resty = File::Spec->catfile($install_dir, "bin", "resty");
+    if (!-f $resty || !-x $resty) {
+        $resty = "resty";  # relying on PATH now
+    }
+
     opendir my $dh, $manifest_dir
         or err "failed to open directory $manifest_dir: $!\n";
 
@@ -1826,6 +1891,7 @@ sub init_installation_ctx ($) {
         installed_files => \%installed_files,  # for clashing files from different pkgs
         level => 0,
         upgrade => $upgrade,
+        resty => $resty,
     };
 
     return $ctx;
@@ -1958,6 +2024,28 @@ sub search_pkg_name ($$) {
     }
 
     print $out;
+}
+
+sub test_version_spec ($$$$$) {
+    my ($name, $actual_ver, $op, $ver, $source) = @_;
+
+    return if !defined $op || !defined $ver;
+
+    my $rc = cmp_version($actual_ver, $ver);
+    #warn "cmp res: $rc";
+
+    if ($op eq '>=') {
+        return if $rc >= 0;
+
+    } elsif ($op eq '=') {
+        return if $rc == 0;
+
+    } elsif ($op eq '>') {
+        return if $rc > 0;
+    }
+
+    err "$name $op $ver required but found $name ",
+        "$actual_ver according to $source.\n";
 }
 
 sub err (@) {

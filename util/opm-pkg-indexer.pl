@@ -41,7 +41,7 @@ my $api_server_port = shift || 8080;
 my $failed_dir = shift || "/tmp/failed";
 my $original_dir = shift || "/tmp/original";
 
-my $SpecialDepPat = qr/^(?:openresty|luajit|ngx_(?:http_)?lua)$/;
+my $SpecialDepPat = qr/^(?:openresty|luajit|ngx_(?:http_)?lua|nginx)$/;
 
 my $name = "opm-pkg-indexer";
 my $pid_file = File::Spec->rel2abs("$name.pid");
