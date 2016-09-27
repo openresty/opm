@@ -58,7 +58,7 @@ $ua->agent("opm pkg indexer" . $version);
 my $req = HTTP::Request->new();
 $req->header(Host => "opm.openresty.org");
 
-my $MAX_FAILS = 100;
+my $MAX_SLEEP_TIME = 1;  # sec
 my $MAX_HTTP_TRIES = 10;
 my $MAX_DEPS = 100;
 
@@ -126,7 +126,7 @@ main();
 unlink $pid_file or die "cannot remove $pid_file: $!\n";;
 
 sub main () {
-    my $fails = 0;
+    my $sleep_time = 0.001;
     #warn "iterations: $iterations";
     for (my $i = 1; $iterations <= 0 || $i <= $iterations; $i++) {
         my $ok;
@@ -138,17 +138,18 @@ sub main () {
         }
 
         if (!$ok) {
-            sleep 0.001 * $fails;
+            #warn $sleep_time;
+            sleep $sleep_time;
 
-            if ($fails < $MAX_FAILS) {
-                $fails++;
+            if ($sleep_time < $MAX_SLEEP_TIME) {
+                $sleep_time *= 2;
             }
 
             next;
         }
 
         # ok
-        $fails = 0;
+        $sleep_time = 0.001;
     }
 }
 
@@ -441,7 +442,14 @@ sub process_cycle () {
                     my ($res, $err) = http_req($uri, undef, { 404 => 1 });
 
                     if (!$res) {
-                        $errstr = "package dependency check failed on \"$name $op $ver\": $err";
+                        my $spec;
+                        if (!defined $op || !defined $ver) {
+                            $spec = '';
+                        } else {
+                            $spec = " $op $ver";
+                        }
+
+                        $errstr = "package dependency check failed on \"$name$spec\": $err";
                         warn $errstr;
                         goto FAIL_UPLOAD;
                     }
