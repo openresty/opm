@@ -177,7 +177,7 @@ sub do_build ($) {
     }
 
     if (length $dist_name < 3
-        || $dist_name =~ /[^-\w]|^(?:nginx|luajit|resty|openresty|opm|restydoc.*)$/i)
+        || $dist_name =~ /[^-\w]|^(?:nginx|luajit|resty|openresty|opm|restydoc.*|ngx_.*|.*-nginx-module)$/i)
     {
         err "$dist_file: bad dist name: $dist_name\n";
     }
