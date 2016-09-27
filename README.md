@@ -109,7 +109,7 @@ The server side web application is built upon OpenResty and written in Lua.
 You can find the server code under the `web/` directory.
 
 Unlike many other package management systems like `cpan`, `luarocks`, `npm`,
-or `pip`, `opm` adopts a package naming discipline similar to `github`, that
+or `pip`. Our `opm` adopts a package naming discipline similar to `github`, that
 is, every package name should be qualified by a publisher ID, as in
 `agentzh/lua-resty-foo` where `agentzh` is the publisher ID while `lua-resty-foo`
 is the package name itself. This naming requirement voids the temptation of
