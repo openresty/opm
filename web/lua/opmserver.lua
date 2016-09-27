@@ -10,6 +10,7 @@ local cjson = require "cjson.safe"
 local ngx = require "ngx"
 local pgmoon = require "pgmoon"
 local tab_clear = require "table.clear"
+local limit_req = require "resty.limit.req"
 
 
 local re_find = ngx.re.find
@@ -30,6 +31,7 @@ local assert = assert
 local sub = string.sub
 local ngx_null = ngx.null
 local tab_concat = table.concat
+local shdict_bad_users = ngx.shared.bad_users
 
 
 local incoming_directory = "/tmp/incoming"
@@ -464,6 +466,31 @@ end
 
 
 function query_github_user(ctx, token)
+    -- limit github accesses globally
+
+    local zone = "global_github_limit"
+    local lim, err = limit_req.new(zone, 1, 5)
+    if not lim then
+        return log_and_out_err(ctx, 500, "failed to new resty.limit.req: ", err)
+    end
+
+    local delay, err = lim:incoming("github", true)
+    if not delay then
+        if err == "rejected" then
+            return log_and_out_err(ctx, 503, "server too busy");
+        end
+        return log_and_out_err(ctx, 500, "failed to limit req: ", err)
+    end
+
+    if delay >= 0.001 then
+        local excess = err
+        ngx.log(ngx.WARN, "delaying github request, excess: ", excess,
+                " by zone ", zone)
+        ngx.sleep(delay)
+    end
+
+    -- query github
+
     local path = "/user"
     local res = query_github(ctx, path)
 
@@ -653,6 +680,22 @@ do
         local httpc = ctx.httpc
         local auth = ctx.auth
         
+        local client_addr = ctx.client_addr
+        if not client_addr then
+            client_addr = ngx_var.binary_remote_addr
+            ctx.client_addr = client_addr
+        end
+
+        local block_key = "block-" .. client_addr
+        do
+            local val = shdict_bad_users:get(block_key)
+            if val then
+                return log_and_out_err(ctx, 403, "client blocked due to ",
+                                       "too many failed attempt. please retry ",
+                                       "in a few minutes")
+            end
+        end
+
         if not httpc then
             httpc = http.new()
             ctx.httpc = httpc
@@ -714,7 +757,28 @@ do
             return ngx.exit(500)
         end
 
-        if res.status == 403 then
+        local count_key = "count-" .. client_addr
+
+        if res.status == 401 or res.status == 403 then
+            -- we add the client IP to the black list for 1 min after 5
+            -- failed attempts.
+
+            local newval, err = shdict_bad_users:incr(count_key, 1, 0)
+            if not newval then
+                ngx.log(ngx.ERR, "failed to incr ", count_key, ": ", err)
+            end
+
+            if newval and newval >= 5 then
+                shdict_bad_users:delete(count_key)
+                local ok, err =
+                    shdict_bad_users:add(block_key, 1, 60)
+
+                if not ok and err ~= "exists" then
+                    ngx.log(ngx.ERR, "failed to add key ", block_key, ": ",
+                            err)
+                end
+            end
+
             ngx.status = 403
             out_err(res.body)
             return ngx.exit(403)
