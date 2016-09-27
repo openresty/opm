@@ -43,6 +43,8 @@ my %Licenses = (
     proprietary => 'Proprietary',
 );
 
+my $SpecialDepPat = qr/^(?:openresty|luajit|ngx_(?:http_)?lua)$/;
+
 sub err (@);
 sub shell (@);
 sub find_sys_install_dir ();
@@ -643,7 +645,7 @@ sub parse_deps {
             if ($full_name =~ m{^ ([-\w]+) / ([-\w]+)  }x) {
                 ($account, $name) = ($1, $2);
 
-            } elsif ($full_name eq 'openresty' || $full_name eq 'luajit') {
+            } elsif ($full_name =~ $SpecialDepPat) {
                 $name = $full_name;
 
             } else {
@@ -664,7 +666,7 @@ sub parse_deps {
             if ($full_name =~ m{^ ([-\w]+) / ([-\w]+)  }x) {
                 ($account, $name) = ($1, $2);
 
-            } elsif ($full_name eq 'openresty' || $full_name eq 'luajit') {
+            } elsif ($full_name =~ $SpecialDepPat) {
                 $name = $full_name;
 
             } else {
@@ -914,7 +916,7 @@ sub install_target ($$) {
 
     if (!$account) {
         if ($ctx->{level} == 0) {
-            if ($name =~ /^(?:luajit|openresty)/i) {
+            if ($name =~ $SpecialDepPat) {
                 err "you cannot install $name via opm.\n";
             }
 
@@ -926,7 +928,7 @@ sub install_target ($$) {
 
         # nested, resolved as a true dependency.
 
-        if ($name =~ /^(?:luajit|openresty)/i) {
+        if ($name =~ $SpecialDepPat) {
             # TODO check LuaJIT and OpenResty versions.
             return;
 
@@ -1376,12 +1378,12 @@ sub get_install_dir () {
 }
 
 sub find_sys_install_dir () {
-    my $dir = realpath(
-                File::Spec->catdir(
-                    $FindBin::RealBin, "..", "site"));
+    my $path = File::Spec->catdir($FindBin::RealBin, "..", "site");
+    my $dir = realpath($path);
 
     if (!defined $dir || !-d $dir) {
-        err "cannot find OpenResty system installation directory.\n";
+        err "cannot find OpenResty system installation directory ",
+            "($path not found).\n";
     }
 
     return $dir;

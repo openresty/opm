@@ -41,6 +41,8 @@ my $api_server_port = shift || 8080;
 my $failed_dir = shift || "/tmp/failed";
 my $original_dir = shift || "/tmp/original";
 
+my $SpecialDepPat = qr/^(?:openresty|luajit|ngx_(?:http_)?lua)$/;
+
 my $name = "opm-pkg-indexer";
 my $pid_file = File::Spec->rel2abs("$name.pid");
 
@@ -699,7 +701,7 @@ sub parse_deps {
             if ($full_name =~ m{^ ([-\w]+) / ([-\w]+)  }x) {
                 ($account, $name) = ($1, $2);
 
-            } elsif ($full_name eq 'openresty' || $full_name eq 'luajit') {
+            } elsif ($full_name =~ $SpecialDepPat) {
                 $name = $full_name;
 
             } else {
@@ -716,7 +718,7 @@ sub parse_deps {
             if ($full_name =~ m{^ ([-\w]+) / ([-\w]+)  }x) {
                 ($account, $name) = ($1, $2);
 
-            } elsif ($full_name eq 'openresty' || $full_name eq 'luajit') {
+            } elsif ($full_name =~ $SpecialDepPat) {
                 $name = $full_name;
 
             } else {
