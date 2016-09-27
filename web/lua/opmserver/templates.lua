@@ -208,7 +208,7 @@ i = i + 1 output[i] = stash_get(stash, 'account') .. '/' .. stash_get(stash, {'r
 end
 i = i + 1 output[i] = value
 
-i = i + 1 output[i] = '\n        </td>\n        <td>'
+i = i + 1 output[i] = '\n        </td>\n        <td>v'
 -- line 36 "index.tt2"
 
 -- FILTER
@@ -217,7 +217,7 @@ do
     local output = {}
     local i = 0
 
-i = i + 1 output[i] = stash_get(stash, 'version_s')
+i = i + 1 output[i] = stash_get(stash, {'row', 0, 'version_s', 0})
 
     value = context.filter(output, 'html', {})
 end
