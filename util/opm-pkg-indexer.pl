@@ -61,8 +61,9 @@ my $req = HTTP::Request->new();
 $req->header(Host => "opm.openresty.org");
 
 my $MAX_SLEEP_TIME = 1;  # sec
-my $MAX_HTTP_TRIES = 10;
-my $MAX_DEPS = 100;
+my $MAX_HTTP_TRIES = 3;
+my $MAX_DEPS = 50;
+#my $MAX_DEPS = 0;
 
 if (-f $pid_file) {
     open my $in, $pid_file

@@ -143,7 +143,7 @@ template_map['index.tt2'] = function (context)
     local i = 0
 
 i = i + 1 output[i] = '<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="utf-8">\n    <title>OPM - OpenResty Package Manager</title>\n    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=2.0, user-scalable=yes">\n    <link rel="stylesheet" type="text/css" href="/css/main.css">\n</head>\n<body>\n<h1>OPM - OpenResty Package Manager</h1>\n<div>\n    <h2>Recent Uploads</h2>\n    <table class="recent">\n    <tbody>'
--- line 40 "index.tt2"
+-- line 41 "index.tt2"
 
 -- FOREACH
 do
@@ -240,6 +240,21 @@ i = i + 1 output[i] = value
 
 i = i + 1 output[i] = '</td>\n        <td>'
 -- line 38 "index.tt2"
+
+-- FILTER
+local value
+do
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = stash_get(stash, 'uploader')
+
+    value = context.filter(output, 'html', {})
+end
+i = i + 1 output[i] = value
+
+i = i + 1 output[i] = '</td>\n        <td>'
+-- line 39 "index.tt2"
 
 -- FILTER
 local value

@@ -12,6 +12,8 @@ local pgmoon = require "pgmoon"
 local tab_clear = require "table.clear"
 local limit_req = require "resty.limit.req"
 local templates = require "opmserver.templates"
+local email = require "opmserver.email"
+local send_email = email.send_mail
 
 
 local re_find = ngx.re.find
@@ -985,6 +987,8 @@ do
             return log_and_out_err(ctx, 400, "no request body found")
         end
 
+        -- do return log_and_out_err(ctx, 400, json) end
+
         local data, err = decode_json(json)
         if not data then
             return log_and_out_err(ctx, 400,
@@ -1084,6 +1088,66 @@ do
         end
 
         say([[{"success":true}]])
+
+        if failed then
+            local sql = "select uploads.version_s as version"
+                        .. ", uploads.package_name as pkg"
+                        .. ", uploads.created_at as created_at"
+                        .. ", users.name as name, users.login as login"
+                        .. ", users.verified_email as email"
+                        .. ", orgs.login as org"
+                        .. " from uploads left join users"
+                        .. " on uploads.uploader = users.id"
+                        .. " left join orgs on"
+                        .. " uploads.org_account = orgs.id"
+                        .. " where uploads.id = " .. id
+
+            local rows = query_db(sql)
+            if #rows == 0 then
+                return log_and_out_err(ctx, 400, "bad id value: ", id)
+            end
+
+            local r = rows[1]
+
+            local account
+            if r.org then
+                account = r.org
+            else
+                account = r.login
+            end
+
+            ctx.account = account
+
+            local name = r.name
+            if not name or name == "" then
+                name = r.login
+            end
+
+            local title = "FAILED: " .. account .. "/" .. r.pkg
+                          .. " " .. r.version
+
+            local content = data.reason or "unknown internal error"
+            local body = tab_concat{
+                "Dear ", name, ",\n\n",
+                "I am the indexer program on the OPM package server.\n\n",
+                "I just ran into a fatal error ",
+                "while processing your package ", account, "/",
+                r.pkg, " ", r.version, ", which was recently uploaded at ",
+                r.created_at, " as Task No. ", id,
+                ".\n\nThe details are as follows. ",
+                "If you still have no clues about the issue,",
+                " please concact us through <info@openresty.org>.\n\n",
+                "Please remember to provide this ",
+                "mail for the reference. Thank you!\n\n------\n",
+                content,
+                "\n------\n\nBest regards,\nOPM Indexer\n",
+            }
+
+            local ok, err = send_email(r.email, name, title, body)
+            if not ok then
+                log_err(ctx, "failed to send email to ", r.email, ": ", err)
+            end
+        end
     end
 end -- do
 
@@ -1400,7 +1464,8 @@ do
             return log_and_out_err(ctx, 400, "bad search query value")
         end
 
-        local sql = "select abstract, package_name, users.login as uploader_name"
+        local sql = "select abstract, package_name"
+                    .. ", users.login as uploader_name"
                     .. ", orgs.login as org_name"
                     .. " from (select first(abstract) as abstract"
                     .. ", package_name, org_account, uploader"

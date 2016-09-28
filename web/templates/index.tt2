@@ -35,6 +35,7 @@
         </td>
         <td>v[% row.version_s | html %]</td>
         <td>[% row.abstract | html %]</td>
+        <td>[% uploader | html %]</td>
         <td>[% row.created_at | html %]</td>
     </tr>
     [%- END %]

@@ -227,7 +227,7 @@ requires = luajit, openresty = 1.11.2.1, openresty/lua-resty-lrucache >= 0.04
 
 As we can see, the `dist.ini` file is using the popular [INI file format](https://en.wikipedia.org/wiki/INI_file).
 Most of the fields in this example should be self-explanatory. For detailed documentation for the fields available
-in `dist.ini`, please check out the [File dist.ini](#file-dist-ini) section.
+in `dist.ini`, please check out the [File dist.ini](#file-distini) section.
 
 The `opm build` command also reads and extracts information from the configuration file `.opmrc` under the current
 system user's home directory (i.e., with the file path `~/.opmrc`). If the file does not exist, `opm build` will
@@ -300,6 +300,23 @@ abstract = New FFI-based Lua API for the ngx_lua module
 This key is mandatory.
 
 [Back to TOC](#table-of-contents)
+
+version
+-------
+
+Version number for the current package.
+
+If this key is specified, then the version number specified here will be automatically compared with
+the version number extracted from the "main module" file (see the [main_module](#main_module) key for more
+details).
+
+Example:
+
+```ini
+version = 1.0.2
+```
+
+This key is optional.
 
 author
 ------
@@ -479,6 +496,20 @@ main_module
 This key specifies the PATH of the "main module" file of the current package.
 The `opm build` command reads the "main module" file to extract the version number
 of the current package, for example.
+
+`opm build` uses simple regular expressions to find Lua code patterns like below:
+
+```lua
+_VERSION = '1.0.2'
+```
+
+```lua
+version = "0.5"
+```
+
+```lua
+version = 0.08
+```
 
 When this key is not specified, then `opm build` will try to find the main module
 file automatically (which might be wrong though).
