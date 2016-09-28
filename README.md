@@ -425,6 +425,9 @@ Multiple dependencies are separated by commas, with optional surrounding spaces.
 requires = foo/lua-resty-bar, baz/lua-resty-blah
 ```
 
+All the dependency constraints specified in this key must be met at the same time when
+the `opm get` or `opm build` command is run.
+
 You can also specify version number requirements, as in
 
 ```ini
