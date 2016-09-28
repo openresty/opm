@@ -766,7 +766,7 @@ do
 
             -- we add the client IP to the black list for 1 min after 5
             -- failed attempts.
-            count_bad_users(count_key, block_key, 60, 5)
+            count_bad_users(count_key, block_key, 5, 60 * 3, 60)
 
             ngx.status = 403
             out_err(res.body)
@@ -1349,7 +1349,7 @@ function _M.get_final_directory()
 end
 
 
-function count_bad_users(count_key, block_key, ban_time, max_failed)
+function count_bad_users(count_key, block_key, max_failed, count_time, ban_time)
     local ok, err = shdict_bad_users:add(count_key, 0, ban_time * 2)
     if not ok and err ~= "exists" then
         ngx.log(ngx.ERR, "failed to add key ", count_key, ": ",
