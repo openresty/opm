@@ -437,9 +437,22 @@ semantics is self-explanatory.
 You can also specify the following special dependency names:
 
 * `luajit`
+
+Requires the LuaJIT component in the package user's OpenResty installation (and also the package uploader's). When
+version number constraints are specified, the version number of the LuaJIT will also be checked.
 * `nginx`
+
+Requires the NGINX component in the package user's OpenResty installation (and also the package uploader's). When
+version number constraints are specified, the version number of the NGINX core will also be checked.
 * `openresty`
+
+This dependency only makes sense when there is an associated version number constraint specified.
+The version number of the package user's (and also uploader's) OpenResty installation must meet the version
+constraint here.
 * `ngx_http_lua`
+
+Requires the ngx_http_lua_module component in the package user's OpenResty installation (and also the package uploader's).
+When version number constraints are specified, the version of the installed ngx_http_lua_module will also be checked.
 
 Below is such an example:
 
