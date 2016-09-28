@@ -573,6 +573,10 @@ _EOC_
 
     $TarBall = "$root_dir.tar.gz";
     shell "tar", "-cvzf", $TarBall, $root_dir;
+
+    #if ($server_build) {
+    #err "something bad bad bad.\n";
+    #}
 }
 
 sub read_ini ($) {

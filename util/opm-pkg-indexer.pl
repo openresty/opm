@@ -256,8 +256,9 @@ sub process_cycle () {
             goto FAIL_UPLOAD;
         }
 
-        if (!shell "ulimit -t 10 -v 204800 && opm server-build") {
-            $errstr = "failed to run \"opm server-build\"";
+        my $out = `ulimit -t 10 -v 204800 && opm server-build 2>&1`;
+        if ($? != 0) {
+            $errstr = "failed to run \"opm server-build\":\n$out";
             warn $errstr;
             goto FAIL_UPLOAD;
         }
