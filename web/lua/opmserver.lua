@@ -72,6 +72,7 @@ local db_insert_org_info, db_insert_org_ownership
 local db_insert_user_verified_email
 local match_table = {}
 local ver2pg_array, tab2pg_array
+local count_bad_users
 
 
 -- an entry point
@@ -695,7 +696,7 @@ do
             if val then
                 return log_and_out_err(ctx, 403, "client blocked due to ",
                                        "too many failed attempt. please retry ",
-                                       "in a few minutes")
+                                       "in a few minutes.")
             end
         end
 
@@ -760,27 +761,12 @@ do
             return ngx.exit(500)
         end
 
-        local count_key = "count-" .. client_addr
-
         if res.status == 401 or res.status == 403 then
+            local count_key = "count-" .. client_addr
+
             -- we add the client IP to the black list for 1 min after 5
             -- failed attempts.
-
-            local newval, err = shdict_bad_users:incr(count_key, 1, 0)
-            if not newval then
-                ngx.log(ngx.ERR, "failed to incr ", count_key, ": ", err)
-            end
-
-            if newval and newval >= 5 then
-                shdict_bad_users:delete(count_key)
-                local ok, err =
-                    shdict_bad_users:add(block_key, 1, 60)
-
-                if not ok and err ~= "exists" then
-                    ngx.log(ngx.ERR, "failed to add key ", block_key, ": ",
-                            err)
-                end
-            end
+            count_bad_users(count_key, block_key, 60, 5)
 
             ngx.status = 403
             out_err(res.body)
@@ -1363,6 +1349,35 @@ function _M.get_final_directory()
 end
 
 
+function count_bad_users(count_key, block_key, ban_time, max_failed)
+    local ok, err = shdict_bad_users:add(count_key, 0, ban_time * 2)
+    if not ok and err ~= "exists" then
+        ngx.log(ngx.ERR, "failed to add key ", count_key, ": ",
+                err)
+        return
+    end
+
+    local newval, err = shdict_bad_users:incr(count_key, 1)
+    if not newval then
+        ngx.log(ngx.ERR, "failed to incr ", count_key, ": ", err)
+        return
+    end
+
+    if newval and newval >= max_failed then
+        shdict_bad_users:delete(count_key)
+
+        local ok, err =
+            shdict_bad_users:add(block_key, 1, ban_time)
+
+        if not ok and err ~= "exists" then
+            ngx.log(ngx.ERR, "failed to add key ", block_key, ": ",
+                    err)
+            return
+        end
+    end
+end
+
+
 do
     local unescape_uri = ngx.unescape_uri
     local results = {}
@@ -1476,7 +1491,8 @@ do
                     .. " group by package_name, uploader, org_account) as tmp"
                     .. " left join users on tmp.uploader = users.id"
                     .. " left join orgs on tmp.org_account = orgs.id"
-                    .. " order by is_original desc, users.followers desc limit 50"
+                    .. " order by is_original desc, users.followers desc"
+                    .. " limit 50"
 
         local rows = query_db(sql)
         -- say(encode_json(rows))
