@@ -306,8 +306,15 @@ sub do_build ($) {
     my @exclude_files;
     my $exclude = delete $default_sec->{exclude_files};
     if ($exclude) {
-        @exclude_files = map { glob } grep { $_ } split /\s*,\s*/, $exclude;
-        #die @exclude_files;
+        my @pats = grep { $_ } split /\s*,\s*/, $exclude;
+        for my $pat (@pats) {
+            my @f = glob $pat;
+            if (!@f) {
+                err "$dist_file: exclude_files pattern \"$pat\" ",
+                    "does not match any files.\n";
+            }
+            push @exclude_files, @f;
+        }
     }
 
     my $lib_dir = delete $default_sec->{lib_dir};
