@@ -1464,10 +1464,11 @@ do
             return log_and_out_err(ctx, 400, "bad search query value")
         end
 
-        local sql = "select abstract, package_name"
+        local sql = "select is_original, abstract, package_name"
                     .. ", users.login as uploader_name"
                     .. ", orgs.login as org_name"
-                    .. " from (select first(abstract) as abstract"
+                    .. " from (select first(is_original) as is_original"
+                    .. ", first(abstract) as abstract"
                     .. ", package_name, org_account, uploader"
                     .. " from uploads"
                     .. " where indexed = true and"
@@ -1475,7 +1476,7 @@ do
                     .. " group by package_name, uploader, org_account) as tmp"
                     .. " left join users on tmp.uploader = users.id"
                     .. " left join orgs on tmp.org_account = orgs.id"
-                    .. " order by users.followers desc limit 50"
+                    .. " order by is_original desc, users.followers desc limit 50"
 
         local rows = query_db(sql)
         -- say(encode_json(rows))
