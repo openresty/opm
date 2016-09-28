@@ -554,7 +554,7 @@ Unix shell wildcards like `*` and `?` are supported.
 Multiple patterns should be separated by commas, with optional surrounding spaces.
 
 ```ini
-exclude_files=foo*.lua, bar/baz/*/*.lua
+exclude_files=foo*.lua, bar/baz/*/*.lua, lint_config.lua
 ```
 
 [Back to TOC](#table-of-contents)
