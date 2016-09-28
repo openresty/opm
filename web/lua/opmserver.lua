@@ -305,8 +305,8 @@ function _M.do_upload()
         local val = shdict_bad_users:get(block_key)
         if val then
             return log_and_out_err(ctx, 403, "github ID ", login,
-                                   " blocked due to ",
-                                   "too many uploads. please retry ",
+                                   " blocked temporarily due to ",
+                                   "too many uploads. Please retry ",
                                    "in a few hours.")
         end
     end
@@ -318,7 +318,7 @@ function _M.do_upload()
         dd("new account, no need to check duplicate uploads")
 
     else
-        dd("check if the package with the same verison under ",
+        dd("check if the package with the same version under ",
             "the same account is already uploaded.")
 
         local sql
@@ -717,9 +717,9 @@ do
         do
             local val = shdict_bad_users:get(block_key)
             if val then
-                return log_and_out_err(ctx, 403, "client blocked due to ",
-                                       "too many failed attempt. please retry ",
-                                       "in a few minutes.")
+                return log_and_out_err(ctx, 403, "client blocked temporarily ",
+                                       "due to too many failed attempt. ",
+                                       "Please retry in a few minutes.")
             end
         end
 
@@ -1118,7 +1118,9 @@ do
 
             local r = rows[1]
 
-            assert(r.email)
+            local email = r.email
+
+            assert(email)
             assert(r.login)
 
             local account
@@ -1129,6 +1131,17 @@ do
             end
 
             ctx.account = account
+
+            local block_key = "block-" .. email
+            -- ngx.log(ngx.WARN, "block key: ", block_key)
+            do
+                local val = shdict_bad_users:get(block_key)
+                if val then
+                    return log_err(ctx, "recipient email address ", email,
+                                   " blocked temporarily due to ",
+                                   "too many emails.")
+                end
+            end
 
             local name = r.name
             if not name or name == "" then
@@ -1155,10 +1168,17 @@ do
                 "\n------\n\nBest regards,\nOPM Indexer\n",
             }
 
-            local ok, err = send_email(r.email, name, title, body)
+            local ok, err = send_email(email, name, title, body)
             if not ok then
-                log_err(ctx, "failed to send email to ", r.email, ": ", err)
+                log_err(ctx, "failed to send email to ", email, ": ", err)
+                return
             end
+
+            local count_key = "count-" .. email
+
+            -- we add the email address to the black list for 12 hours after
+            -- sending 20 emails in the last 24 hours.
+            count_bad_users(count_key, block_key, 20, 3600 * 24, 3600 * 12)
         end
     end
 end -- do
