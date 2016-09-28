@@ -463,6 +463,12 @@ Below is such an example:
 requires = luajit >= 2.1.0, nginx >= 1.11.2, ngx_http_lua = 0.10.6
 ```
 
+or you can just specify a single `openresty` version constraint to cover them all in the example above:
+
+```ini
+requires = openresty >= 1.11.2.1
+```
+
 This key is optional.
 
 [Back to TOC](#table-of-contents)
