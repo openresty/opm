@@ -297,6 +297,20 @@ function _M.do_upload()
         db_insert_user_verified_email(ctx, user_id, verified_email)
     end
 
+    -- check if there is too many uploads.
+
+    local block_key = "block-" .. login
+    -- ngx.log(ngx.WARN, "block key: ", block_key)
+    do
+        local val = shdict_bad_users:get(block_key)
+        if val then
+            return log_and_out_err(ctx, 403, "github ID ", login,
+                                   " blocked due to ",
+                                   "too many uploads. please retry ",
+                                   "in a few hours.")
+        end
+    end
+
     local quoted_pkg_name = quote_sql_str(pkg_name)
     local ver_v = ver2pg_array(pkg_version)
 
@@ -396,6 +410,15 @@ function _M.do_upload()
     local sql = sql1 .. sql2 .. sql3 .. sql4
     local res = query_db(sql)
     assert(res.affected_rows == 1)
+
+    do
+        local count_key = "count-" .. login
+        -- ngx.log(ngx.WARN, "count key: ", count_key)
+
+        -- we add the github login name to the black list for 1 hour after 10
+        -- uploads in 5 hours.
+        count_bad_users(count_key, block_key, 10, 3600 * 5, 3600)
+    end
 
     say("File ", fname, " has been successfully uploaded ",
         "and will be processed by the server shortly.\n",
@@ -765,7 +788,7 @@ do
             local count_key = "count-" .. client_addr
 
             -- we add the client IP to the black list for 1 min after 5
-            -- failed attempts.
+            -- failed attempts in the last 3 min.
             count_bad_users(count_key, block_key, 5, 60 * 3, 60)
 
             ngx.status = 403
