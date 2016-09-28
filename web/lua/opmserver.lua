@@ -1470,7 +1470,8 @@ do
                     .. " from (select first(abstract) as abstract"
                     .. ", package_name, org_account, uploader"
                     .. " from uploads"
-                    .. " where package_name = " .. quote_sql_str(query)
+                    .. " where indexed = true and"
+                    .. " package_name = " .. quote_sql_str(query)
                     .. " group by package_name, uploader, org_account) as tmp"
                     .. " left join users on tmp.uploader = users.id"
                     .. " left join orgs on tmp.org_account = orgs.id"
