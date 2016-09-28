@@ -417,7 +417,7 @@ function _M.do_upload()
 
         -- we add the github login name to the black list for 1 hour after 10
         -- uploads in 5 hours.
-        count_bad_users(count_key, block_key, 10, 3600 * 5, 3600)
+        count_bad_users(count_key, block_key, 10, 3600 * 5, 3600 * 2)
     end
 
     say("File ", fname, " has been successfully uploaded ",
@@ -1117,6 +1117,9 @@ do
             end
 
             local r = rows[1]
+
+            assert(r.email)
+            assert(r.login)
 
             local account
             if r.org then
