@@ -15,12 +15,14 @@ Table of Contents
 * [File dist.ini](#file-distini)
     * [name](#name)
     * [abstract](#abstract)
+    * [version](#version)
     * [author](#author)
     * [license](#license)
     * [requires](#requires)
     * [repo_link](#repo_link)
     * [is_original](#is_original)
     * [lib_dir](#lib_dir)
+    * [exclude_files](#exclude_files)
     * [main_module](#main_module)
     * [doc_dir](#doc_dir)
 * [File .opmrc](#file-opmrc)
@@ -288,6 +290,35 @@ This key is mandatory.
 
 [Back to TOC](#table-of-contents)
 
+Table of Contents
+=================
+
+* [Name](#name)
+* [Status](#status)
+* [Synopsis](#synopsis)
+* [Description](#description)
+* [Usage](#usage)
+* [Author Workflow](#author-workflow)
+* [File dist.ini](#file-distini)
+    * [name](#name)
+    * [abstract](#abstract)
+    * [version](#version)
+    * [author](#author)
+    * [license](#license)
+    * [requires](#requires)
+    * [repo_link](#repo_link)
+    * [is_original](#is_original)
+    * [lib_dir](#lib_dir)
+    * [exclude_files](#exclude_files)
+    * [main_module](#main_module)
+    * [doc_dir](#doc_dir)
+* [File .opmrc](#file-opmrc)
+* [Prerequisites](#prerequisites)
+    * [For opm](#for-opm)
+* [TODO](#todo)
+* [Author](#author)
+* [Copyright and License](#copyright-and-license)
+
 abstract
 --------
 
@@ -317,6 +348,8 @@ version = 1.0.2
 ```
 
 This key is optional.
+
+[Back to TOC](#table-of-contents)
 
 author
 ------
@@ -509,6 +542,20 @@ Specifies the root directory of the library files (`.lua` files, for example).
 Default to `lib`.
 
 This key is optional.
+
+[Back to TOC](#table-of-contents)
+
+exclude_files
+-------------
+
+Specifies patterns for files to be excluded during packaging via `opm bulid`.
+Unix shell wildcards like `*` and `?` are supported.
+
+Multiple patterns should be separated by commas, with optional surrounding spaces.
+
+```ini
+exclude_files=foo*.lua, bar/baz/*/*.lua
+```
 
 [Back to TOC](#table-of-contents)
 

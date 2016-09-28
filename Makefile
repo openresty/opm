@@ -32,6 +32,9 @@ test: | initdb reload
 	$(opm) get openresty/lua-resty-core
 	curl -H 'Server: opm.openresyt.org' http://localhost:8080/
 
+.PHONY: restart
+	$(MAKE) stop start
+
 .PHONY: run
 run: all
 	mkdir -p $(webpath)/logs

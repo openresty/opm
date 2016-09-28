@@ -303,6 +303,13 @@ sub do_build ($) {
         }
     }
 
+    my @exclude_files;
+    my $exclude = delete $default_sec->{exclude_files};
+    if ($exclude) {
+        @exclude_files = map { glob } grep { $_ } split /\s*,\s*/, $exclude;
+        #die @exclude_files;
+    }
+
     my $lib_dir = delete $default_sec->{lib_dir};
 
     if ($server_build && $lib_dir ne 'lib') {
@@ -331,9 +338,24 @@ sub do_build ($) {
     my $main_module;
     my @lua_modules;
 
-    File::Find::find(sub {
+    File::Find::find({ no_chdir => 1, wanted => sub {
         return unless /\.lua$/;
-        (my $name = $File::Find::name) =~ s{^\Q$lib_dir\E/?}{};
+
+        my $full_name = $File::Find::name;
+
+        if ($full_name =~ /\b$dist_name-\d+/) {
+            return;
+        }
+
+        for my $file (@exclude_files) {
+            #warn "$full_name vs $file";
+            if (realpath($full_name) eq realpath($file)) {
+                warn "excluded file $full_name due to \"exclude_files\".\n";
+                return;
+            }
+        }
+
+        (my $name = $full_name) =~ s{^\Q$lib_dir\E/?}{};
         $name =~ s{/}{-}g;
         $name =~ s/\.(\w+)$//;
 
@@ -352,7 +374,7 @@ sub do_build ($) {
 
         #warn $name;
         push @lua_modules, $module;
-    },  $lib_dir);
+    } },  $lib_dir);
 
     if (!@lua_modules) {
         err "No Lua modules found under direcgtory $lib_dir.\n";
@@ -478,10 +500,22 @@ sub do_build ($) {
         }
     }
 
-    File::Find::find(sub {
+    File::Find::find({ no_chdir => 1, wanted => sub {
         return unless /\.(md|markdown|pod)$/;
-
         my $ext = $1;
+
+        my $full_name = $File::Find::name;
+
+        if ($full_name =~ /\b$dist_name-\d+/) {
+            return;
+        }
+
+        for my $file (@exclude_files) {
+            if (realpath($full_name) eq realpath($file)) {
+                warn "excluded file $full_name due to \"exclude_files\".\n";
+                return;
+            }
+        }
 
         (my $fname = $File::Find::name) =~ s{^\Q$lib_dir\E/?}{};
 
@@ -491,7 +525,7 @@ sub do_build ($) {
         };
 
         #warn "$fname => $File::Find::name";
-    },  $doc_dir);
+    } },  $doc_dir);
 
     if (!$server_build) {
         my $dst_doc_dir = File::Spec->catfile($root_dir, "lib");
@@ -554,6 +588,7 @@ sub do_build ($) {
         my $outfile = "$root_dir/dist.ini";
         open my $out, ">$outfile"
             or err "failed to open $outfile for writing: $!\n";
+
         print $out <<_EOC_;
 account = $account
 name = $dist_name
@@ -566,8 +601,12 @@ lib_dir = lib
 doc_dir = lib
 version = $version
 main_module = $main_module
-requires = $requires
 _EOC_
+
+        if ($requires) {
+            print $out "requires = $requires\n";
+        }
+
         close $out;
     }
 
