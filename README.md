@@ -28,6 +28,7 @@ Table of Contents
 * [File .opmrc](#file-opmrc)
 * [Installation](#installation)
     * [For opm](#for-opm)
+* [Security Considerations](#security-considerations)
 * [TODO](#todo)
 * [Author](#author)
 * [Copyright and License](#copyright-and-license)
@@ -613,7 +614,29 @@ sudo mkdir -p site/lualib site/manifest site/pod
 ```
 
 To run the `opm` tool, you just need `perl`, `tar`, and `curl` to run the `opm` tool. Ensure
-that your perl is not too old (should be at least `5.10.1`), and your curl supports SNI.
+that your perl is not too old (should be at least `5.10.1`), and your curl supports `SNI`.
+
+[Back to TOC](#table-of-contents)
+
+Security Considerations
+=======================
+
+The `opm` client tool always uses HTTPS to talk to the package server, [opm.openresty.org](https://opm.openresty.org/),
+by default. Both for package uploading and package downloading, as well as other web service queries for meta data.
+Although it is possible for the user to manually switch to the HTTP protocol
+by editing the `download_server` and/or `upload_server` keys in the `~/.opmrc` file in the user's system.
+The `opm` client tool also always verifies the SSL certificates of the remote OPM package server (via `curl` right now).
+
+Similarly, the OPM package server also always uses SSL/TLS to talk to remote services provided by GitHub and Mailgun.
+These remote sites' SSL certificates are also always verified on the server side. This cannot be turned off by the user.
+
+The OPM package server uses PostgreSQL's `pgcrypto` extension to encrypt the authors' GitHub personal access tokens
+in the database.
+Even the server administrators cannot recover the original access tokens from the database.
+The server also ensures that the author's personal token is not too permissive by rejecting such tokens.
+
+The `opm` tool chain and server also always perform the MD5 checksum verification upon both the
+downloaded and uploaded package files, to ensure data integrity when transferred over the wire.
 
 [Back to TOC](#table-of-contents)
 
