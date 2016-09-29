@@ -1615,7 +1615,7 @@ end
 function _M.do_index_page()
     local sql = [[select package_name, version_s, abstract, indexed]]
                 .. [[, failed, users.login as uploader_name]]
-                .. [[, orgs.login as org_name]]
+                .. [[, orgs.login as org_name, repo_link]]
                 .. [[, uploads.created_at as created_at]]
                 .. [[ from uploads]]
                 .. [[ left join users on uploads.uploader = users.id]]

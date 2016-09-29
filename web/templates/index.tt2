@@ -33,11 +33,17 @@
         </td>
 
         <td>
-        [% account _ "/" _ row.package_name | html %]
+            <a href="[% row.repo_link %]">
+            [% account _ "/" _ row.package_name | html %]
+            </a>
         </td>
         <td>v[% row.version_s | html %]</td>
         <td>[% row.abstract | html %]</td>
-        <td>[% uploader | html %]</td>
+        <td>
+            <a href="https://github.com/[% uploader | html %]/">
+                [% uploader | html %]
+            </a>
+        </td>
         <td>[% row.created_at | html %]</td>
     </tr>
     [%- END %]
