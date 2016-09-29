@@ -631,7 +631,8 @@ Similarly, the OPM package server always uses TLS to talk to remote services pro
 These remote sites' SSL certificates are also always verified on the server side. This cannot be turned off by the user.
 
 The OPM package server uses PostgreSQL's `pgcrypto` extension to encrypt the authors' GitHub personal access tokens
-in the database.
+in the database (we
+cache the tokens in our own database to speed up subsequent uploads and improve site reliability when the GitHub API is down).
 Even the server administrators cannot recover the original access tokens from the database.
 The server also ensures that the author's personal token is not too permissive by rejecting such tokens.
 
