@@ -266,7 +266,7 @@ File dist.ini
 =============
 
 The `dist.ini` file specifies the meta data of a package and is used by `opm build`
-to generate a tarball that is ready to upload to the remote pacakge server. This
+to generate a tarball that is ready to upload to the remote package server. This
 file should sit at the top of the library or module source tree.
 
 This file uses the [INI file format](https://en.wikipedia.org/wiki/INI_file). It
