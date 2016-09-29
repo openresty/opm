@@ -133,6 +133,35 @@ function _M.process(file, params)
     end
     return f(context)
 end
+-- footer.tt2
+template_map['footer.tt2'] = function (context)
+    if not context then
+        return error("Lemplate function called without context\n")
+    end
+    local stash = context.stash
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = '<div class="content-footer">\n<!-- <hr class="footer-sep"/> -->\n<div class="footer">\n  <p>'
+-- line 4 "footer.tt2"
+i = i + 1 output[i] = 'Copyright © 2016 Yichun Zhang (agentzh)'
+i = i + 1 output[i] = '</p>\n  <p>'
+-- line 5 "footer.tt2"
+i = i + 1 output[i] = '100% Powered by OpenResty and PostgreSQL'
+i = i + 1 output[i] = '\n     '
+-- line 6 "footer.tt2"
+i = i + 1 output[i] = '('
+i = i + 1 output[i] = '<a href="https://github.com/openresty/opm/">\n     '
+-- line 7 "footer.tt2"
+i = i + 1 output[i] = 'view the source code of this site'
+i = i + 1 output[i] = '</a>'
+-- line 7 "footer.tt2"
+i = i + 1 output[i] = ')'
+i = i + 1 output[i] = '</p>\n  <p>京ICP备16021991号</p>\n</div>\n</div>\n'
+
+    return output
+end
+
 -- index.tt2
 template_map['index.tt2'] = function (context)
     if not context then
@@ -293,7 +322,10 @@ i = i + 1 output[i] = '</td>\n    </tr>'
     stash_set(stash, 'loop', oldloop)
 end
 
-i = i + 1 output[i] = '\n    </tbody>\n    </table>\n</div>\n</body>\n'
+i = i + 1 output[i] = '\n    </tbody>\n    </table>\n</div>\n'
+-- line 53 "index.tt2"
+i = i + 1 output[i] = context.process(context, 'footer.tt2')
+i = i + 1 output[i] = '\n</body>\n'
 
     return output
 end

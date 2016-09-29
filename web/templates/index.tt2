@@ -50,4 +50,5 @@
     </tbody>
     </table>
 </div>
+[% PROCESS "footer.tt2" %]
 </body>
