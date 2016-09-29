@@ -1,7 +1,7 @@
 Name
 ====
 
-opm - Official package management system for OpenResty
+opm - OpenResty Package Managemener
 
 Table of Contents
 =================
@@ -102,8 +102,8 @@ opm upload
 Description
 ===========
 
-`opm` is the official OpenResty package management system kinda similar to
-Perl's CPAN.
+`opm` is the official OpenResty package manager, similar to
+Perl's CPAN and NodeJS's npm in rationale.
 
 We provide both the `opm` client-side command-line utility and
 the server-side application for the central package repository in this
