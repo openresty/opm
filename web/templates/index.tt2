@@ -9,6 +9,8 @@
 <body>
 <h1>OPM - OpenResty Package Manager</h1>
 <div>
+    <h2>How to Use</h2>
+    <p>Please read the <a href="https://github.com/openresty/opm#readme">opm documentation</a> for more details.</p>
     <h2>Recent Uploads</h2>
     <table class="recent">
     <tbody>

@@ -142,8 +142,8 @@ template_map['index.tt2'] = function (context)
     local output = {}
     local i = 0
 
-i = i + 1 output[i] = '<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="utf-8">\n    <title>OPM - OpenResty Package Manager</title>\n    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=2.0, user-scalable=yes">\n    <link rel="stylesheet" type="text/css" href="/css/main.css">\n</head>\n<body>\n<h1>OPM - OpenResty Package Manager</h1>\n<div>\n    <h2>Recent Uploads</h2>\n    <table class="recent">\n    <tbody>'
--- line 41 "index.tt2"
+i = i + 1 output[i] = '<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="utf-8">\n    <title>OPM - OpenResty Package Manager</title>\n    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=2.0, user-scalable=yes">\n    <link rel="stylesheet" type="text/css" href="/css/main.css">\n</head>\n<body>\n<h1>OPM - OpenResty Package Manager</h1>\n<div>\n    <h2>How to Use</h2>\n    <p>Please read the <a href="https://github.com/openresty/opm#readme">opm documentation</a> for more details.</p>\n    <h2>Recent Uploads</h2>\n    <table class="recent">\n    <tbody>'
+-- line 43 "index.tt2"
 
 -- FOREACH
 do
@@ -171,20 +171,20 @@ do
         iterator.next = list[idx + 1]
         stash['row'] = value
 i = i + 1 output[i] = '\n    <tr>\n        '
--- line 17 "index.tt2"
+-- line 19 "index.tt2"
 stash_set(stash, 'uploader', stash_get(stash, {'row', 0, 'uploader_name', 0}));
--- line 17 "index.tt2"
+-- line 19 "index.tt2"
 stash_set(stash, 'org', stash_get(stash, {'row', 0, 'org_name', 0}));
--- line 17 "index.tt2"
+-- line 19 "index.tt2"
 stash_set(stash, 'account', stash_get(stash, 'uploader'));
--- line 17 "index.tt2"
+-- line 19 "index.tt2"
 if tt2_true(stash_get(stash, 'org')) then
--- line 17 "index.tt2"
+-- line 19 "index.tt2"
 stash_set(stash, 'account', stash_get(stash, 'org'));
 end
 
 i = i + 1 output[i] = '\n        <td>'
--- line 30 "index.tt2"
+-- line 32 "index.tt2"
 if tt2_true(stash_get(stash, {'row', 0, 'indexed', 0})) then
 i = i + 1 output[i] = '\n        <span class="indexed">Indexed</span>'
 elseif tt2_true(stash_get(stash, {'row', 0, 'failed', 0})) then
@@ -194,7 +194,7 @@ i = i + 1 output[i] = '\n        <span class="pending">Pending</span>'
 end
 
 i = i + 1 output[i] = '\n        </td>\n\n        <td>\n        '
--- line 34 "index.tt2"
+-- line 36 "index.tt2"
 
 -- FILTER
 local value
@@ -209,7 +209,7 @@ end
 i = i + 1 output[i] = value
 
 i = i + 1 output[i] = '\n        </td>\n        <td>v'
--- line 36 "index.tt2"
+-- line 38 "index.tt2"
 
 -- FILTER
 local value
@@ -224,7 +224,7 @@ end
 i = i + 1 output[i] = value
 
 i = i + 1 output[i] = '</td>\n        <td>'
--- line 37 "index.tt2"
+-- line 39 "index.tt2"
 
 -- FILTER
 local value
@@ -239,7 +239,7 @@ end
 i = i + 1 output[i] = value
 
 i = i + 1 output[i] = '</td>\n        <td>'
--- line 38 "index.tt2"
+-- line 40 "index.tt2"
 
 -- FILTER
 local value
@@ -254,7 +254,7 @@ end
 i = i + 1 output[i] = value
 
 i = i + 1 output[i] = '</td>\n        <td>'
--- line 39 "index.tt2"
+-- line 41 "index.tt2"
 
 -- FILTER
 local value
