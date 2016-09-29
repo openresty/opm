@@ -1775,7 +1775,7 @@ sub do_info {
 
     my $manifest_dir = File::Spec->catfile($install_dir, "manifest");
     if (!-d $manifest_dir) {
-        return;
+        err "no packages installed yet.\n";
     }
 
     local $_;
