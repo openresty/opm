@@ -2124,7 +2124,8 @@ sub shell (@) {
     #warn join(" ", map { /["?&;|\s]/ ? "'$_'" : $_ } @_), "\n";
 
     if (system(@_) != 0) {
-        err "failed to run command\n";
+        my $cmd = join(" ", map { /["?&;|\s]/ ? "'$_'" : $_ } @_),
+        err "failed to run command $cmd\n";
     }
 }
 
