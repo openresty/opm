@@ -1624,24 +1624,18 @@ function _M.do_index_page()
 
     local recent_uploads = query_db(sql)
 
-    sql = [[select count(*) as count from uploads where indexed = true]]
+    sql = [[select count(*) as total,
+count(distinct uploader) as uploaders,
+count(distinct package_name) as pkg_count
+from uploads where indexed = true]]
 
     local rows = query_db(sql)
-    local total_uploads = rows[1].count
+    assert(#rows == 1)
+    local row = rows[1]
 
-    sql = [[select count(distinct uploader) as count
-from uploads
-where indexed = true]]
-
-    rows = query_db(sql)
-    local uploader_count = rows[1].count
-
-    sql = [[select count(distinct package_name) as count
-from uploads
-where indexed = true]]
-
-    rows = query_db(sql)
-    local pkg_count = rows[1].count
+    local total_uploads = row.total
+    local uploader_count = row.uploaders
+    local pkg_count = row.pkg_count
 
     local html = templates.process("index.tt2", {
         recent_uploads = recent_uploads,
