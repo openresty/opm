@@ -636,7 +636,7 @@ Even the server administrators cannot recover the original access tokens from th
 The server also ensures that the author's personal token is not too permissive by rejecting such tokens.
 
 The `opm` tool chain and server also always perform the MD5 checksum verification upon both the
-downloaded and uploaded package files, to ensure data integrity for transfers over the wire.
+downloaded and uploaded package files, to ensure data integrity when transferred over the wire.
 
 [Back to TOC](#table-of-contents)
 
