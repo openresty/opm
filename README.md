@@ -624,7 +624,7 @@ Security Considerations
 The `opm` client tool always uses HTTPS to talk to the package server, [opm.openresty.org](https://opm.openresty.org/),
 by default. Both for package uploading and package downloading, as well as other web service queries for meta data.
 Although it is possible for the user to manually switch to the HTTP protocol
-by editing the `download_server` and/or `upload_server` keys in the `~/.opmrc` file in the user's system.
+by editing the `download_server` and/or `upload_server` keys in her own `~/.opmrc` file.
 The `opm` client tool also always verifies the SSL certificates of the remote OPM package server (via `curl` right now).
 
 Similarly, the OPM package server also always uses SSL/TLS to talk to remote services provided by GitHub and Mailgun.
