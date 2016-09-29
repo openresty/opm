@@ -1241,7 +1241,7 @@ sub install_target ($$) {
             }
 
             $dist_file = $1;
-            last;
+            next;
         }
     }
 
@@ -1253,7 +1253,7 @@ sub install_target ($$) {
 
     if (!defined $expected_md5) {
         err "no X-File-Checksum response header received from server URL ",
-            "\"$url\".\n";
+            "\"$url\": $out\n";
     }
 
     $url = $download_url . $target;
