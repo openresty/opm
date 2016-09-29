@@ -248,6 +248,10 @@ sub do_build ($) {
             "(must be a http:// or https:// link): $repo_link\n";
     }
 
+    if ($repo_link =~ /["'\s<>{}]/) {
+        err "$dist_file: bad \"repo_link\" value: $repo_link\n";
+    }
+
     if ($repo_link =~ m{github\.com/([-\w]+)}) {
         $RepoLinkUser = $1;
         $RepoLink = $repo_link;
