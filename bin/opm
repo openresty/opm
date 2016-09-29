@@ -409,8 +409,8 @@ sub do_build ($) {
 
     my $code_ver;
     while (<$in>) {
-        if (/\b(?:_?VERSION|version)\s*=\s*(.+)/) {
-            (my $ver = $1) =~ s/['"]|\[=*\[|\]=*\]|\s+$//g;
+        if (/\b(?:_?VERSION|version)\s*=\s*(\S+)/) {
+            (my $ver = $1) =~ s/['"{}()<>]|\[=*\[|\]=*\]|\s+$//g;
             if ($ver =~ /\d/) {
                 $code_ver = $ver;
                 last;
