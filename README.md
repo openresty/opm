@@ -26,7 +26,7 @@ Table of Contents
     * [main_module](#main_module)
     * [doc_dir](#doc_dir)
 * [File .opmrc](#file-opmrc)
-* [Prerequisites](#prerequisites)
+* [Installation](#installation)
     * [For opm](#for-opm)
 * [TODO](#todo)
 * [Author](#author)
@@ -584,14 +584,28 @@ TODO
 
 [Back to TOC](#table-of-contents)
 
-Prerequisites
-=============
+Installation
+============
 
 For opm
 -------
 
-You just need `perl`, `tar`, and `curl` to run the `opm` tool. Ensure that your perl is not
-too old (should be at least `5.10.1`), and your curl supports SNI.
+The next OpenResty release (*after* `1.11.2.1`) will include and install `opm` by default. So usually
+you do not need to install `opm` yourself. If you really want to update to the latest version of
+`opm` in the code repository, then just copy the file `bin/opm` in the repository over to
+`<openresty-prefix>/bin/` where `<openresty-prefix>` is the value of the `--prefix` option of
+`./configure` while you are building your OpenResty (defaults to `/usr/local/openresty/`).
+
+If you are using an older version of OpenResty that does not include `opm` by default, then
+you should also create the following directories:
+
+```
+cd <openresty-prefix>
+sudo mkdir -p site/lualib site/manifest site/pod
+```
+
+To run the `opm` tool, you just need `perl`, `tar`, and `curl` to run the `opm` tool. Ensure
+that your perl is not too old (should be at least `5.10.1`), and your curl supports SNI.
 
 [Back to TOC](#table-of-contents)
 
