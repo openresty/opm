@@ -1835,9 +1835,15 @@ Author           : $default_sec->{author}
 Account          : $meta_account
 Code Repo        : $default_sec->{repo_link}
 License          : $license_lines
-Requires         : $default_sec->{requires}
 Original Work    : $default_sec->{is_original}
 _EOC_
+
+        my $requires = $default_sec->{requires};
+        if ($requires) {
+            print <<_EOC_;
+Requires         : $requires
+_EOC_
+        }
     }
 }
 
