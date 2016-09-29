@@ -596,7 +596,7 @@ you do not need to install `opm` yourself. If you really want to update to the l
 `<openresty-prefix>/bin/` where `<openresty-prefix>` is the value of the `--prefix` option of
 `./configure` while you are building your OpenResty (defaults to `/usr/local/openresty/`).
 
-If you are using an older version of OpenResty that does not include `opm` by default, then
+If you are using an older version of OpenResty that does *not* include `opm` by default, then
 you should also create the following directories:
 
 ```
