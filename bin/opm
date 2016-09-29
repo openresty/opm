@@ -437,7 +437,7 @@ sub do_build ($) {
     # check Lua source file syntax.
 
     for my $mod (@lua_modules) {
-        shell $LuaJIT, "-bl", $mod->{path}, "/dev/null";
+        shell $LuaJIT, "-b", $mod->{path}, "/dev/null";
     }
 
     # copy document files over.
