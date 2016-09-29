@@ -171,8 +171,17 @@ template_map['index.tt2'] = function (context)
     local output = {}
     local i = 0
 
-i = i + 1 output[i] = '<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="utf-8">\n    <title>OPM - OpenResty Package Manager</title>\n    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=2.0, user-scalable=yes">\n    <link rel="stylesheet" type="text/css" href="/css/main.css">\n</head>\n<body>\n<h1>OPM - OpenResty Package Manager</h1>\n<div>\n    <h2>How to Use</h2>\n    <p>Please read the <a href="https://github.com/openresty/opm#readme">opm documentation</a> for more details.</p>\n    <h2>Recent Uploads</h2>\n    <table class="recent">\n    <tbody>'
--- line 49 "index.tt2"
+i = i + 1 output[i] = '<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="utf-8">\n    <title>OPM - OpenResty Package Manager</title>\n    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=2.0, user-scalable=yes">\n    <link rel="stylesheet" type="text/css" href="/css/main.css">\n</head>\n<body>\n<h1>OPM - OpenResty Package Manager</h1>\n<div>\n    <h2>How to Use</h2>\n    <p>Please read the <a href="https://github.com/openresty/opm#readme">opm documentation</a> for more details.</p>\n    <h2>Recent Uploads</h2>\n    <p>We already have '
+-- line 15 "index.tt2"
+i = i + 1 output[i] = stash_get(stash, 'total_uploads')
+i = i + 1 output[i] = ' successful uploads\n       across '
+-- line 16 "index.tt2"
+i = i + 1 output[i] = stash_get(stash, 'package_count')
+i = i + 1 output[i] = ' different package names from '
+-- line 16 "index.tt2"
+i = i + 1 output[i] = stash_get(stash, 'uploader_count')
+i = i + 1 output[i] = '\n       contributors. Come on, OPM authors!</p>\n    <table class="recent">\n    <tbody>'
+-- line 52 "index.tt2"
 
 -- FOREACH
 do
@@ -200,20 +209,20 @@ do
         iterator.next = list[idx + 1]
         stash['row'] = value
 i = i + 1 output[i] = '\n    <tr>\n        '
--- line 19 "index.tt2"
+-- line 22 "index.tt2"
 stash_set(stash, 'uploader', stash_get(stash, {'row', 0, 'uploader_name', 0}));
--- line 19 "index.tt2"
+-- line 22 "index.tt2"
 stash_set(stash, 'org', stash_get(stash, {'row', 0, 'org_name', 0}));
--- line 19 "index.tt2"
+-- line 22 "index.tt2"
 stash_set(stash, 'account', stash_get(stash, 'uploader'));
--- line 19 "index.tt2"
+-- line 22 "index.tt2"
 if tt2_true(stash_get(stash, 'org')) then
--- line 19 "index.tt2"
+-- line 22 "index.tt2"
 stash_set(stash, 'account', stash_get(stash, 'org'));
 end
 
 i = i + 1 output[i] = '\n        <td>'
--- line 32 "index.tt2"
+-- line 35 "index.tt2"
 if tt2_true(stash_get(stash, {'row', 0, 'indexed', 0})) then
 i = i + 1 output[i] = '\n        <span class="indexed">Indexed</span>'
 elseif tt2_true(stash_get(stash, {'row', 0, 'failed', 0})) then
@@ -223,10 +232,10 @@ i = i + 1 output[i] = '\n        <span class="pending">Pending</span>'
 end
 
 i = i + 1 output[i] = '\n        </td>\n\n        <td>\n            <a href="'
--- line 36 "index.tt2"
+-- line 39 "index.tt2"
 i = i + 1 output[i] = stash_get(stash, {'row', 0, 'repo_link', 0})
 i = i + 1 output[i] = '">\n            '
--- line 37 "index.tt2"
+-- line 40 "index.tt2"
 
 -- FILTER
 local value
@@ -241,7 +250,7 @@ end
 i = i + 1 output[i] = value
 
 i = i + 1 output[i] = '\n            </a>\n        </td>\n        <td>v'
--- line 40 "index.tt2"
+-- line 43 "index.tt2"
 
 -- FILTER
 local value
@@ -256,7 +265,7 @@ end
 i = i + 1 output[i] = value
 
 i = i + 1 output[i] = '</td>\n        <td>'
--- line 41 "index.tt2"
+-- line 44 "index.tt2"
 
 -- FILTER
 local value
@@ -271,7 +280,7 @@ end
 i = i + 1 output[i] = value
 
 i = i + 1 output[i] = '</td>\n        <td>\n            <a href="https://github.com/'
--- line 43 "index.tt2"
+-- line 46 "index.tt2"
 
 -- FILTER
 local value
@@ -286,7 +295,7 @@ end
 i = i + 1 output[i] = value
 
 i = i + 1 output[i] = '/">\n                '
--- line 44 "index.tt2"
+-- line 47 "index.tt2"
 
 -- FILTER
 local value
@@ -301,7 +310,7 @@ end
 i = i + 1 output[i] = value
 
 i = i + 1 output[i] = '\n            </a>\n        </td>\n        <td>'
--- line 47 "index.tt2"
+-- line 50 "index.tt2"
 
 -- FILTER
 local value
@@ -323,7 +332,7 @@ i = i + 1 output[i] = '</td>\n    </tr>'
 end
 
 i = i + 1 output[i] = '\n    </tbody>\n    </table>\n</div>\n'
--- line 53 "index.tt2"
+-- line 56 "index.tt2"
 i = i + 1 output[i] = context.process(context, 'footer.tt2')
 i = i + 1 output[i] = '\n</body>\n'
 

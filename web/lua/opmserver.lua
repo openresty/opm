@@ -1622,9 +1622,33 @@ function _M.do_index_page()
                 .. [[ left join orgs on uploads.org_account = orgs.id]]
                 .. [[ order by uploads.updated_at desc limit 100]]
 
-    local rows = query_db(sql)
+    local recent_uploads = query_db(sql)
 
-    local html = templates.process("index.tt2", { recent_uploads = rows })
+    sql = [[select count(*) as count from uploads where indexed = true]]
+
+    local rows = query_db(sql)
+    local total_uploads = rows[1].count
+
+    sql = [[select count(distinct uploader) as count
+from uploads
+where indexed = true]]
+
+    rows = query_db(sql)
+    local uploader_count = rows[1].count
+
+    sql = [[select count(distinct package_name) as count
+from uploads
+where indexed = true]]
+
+    rows = query_db(sql)
+    local pkg_count = rows[1].count
+
+    local html = templates.process("index.tt2", {
+        recent_uploads = recent_uploads,
+        total_uploads = total_uploads,
+        uploader_count = uploader_count,
+        package_count = pkg_count,
+    })
     say(html)
 end
 
