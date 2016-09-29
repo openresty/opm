@@ -46,7 +46,7 @@ my %Licenses = (
 my $SpecialDepPat = qr/^(?:openresty|luajit|ngx_(?:http_)?lua|nginx)$/;
 
 sub err (@);
-sub shell (@);
+sub shell ($);
 sub find_sys_install_dir ();
 sub get_install_dir ();
 sub install_file ($$$);
@@ -437,7 +437,7 @@ sub do_build ($) {
     # check Lua source file syntax.
 
     for my $mod (@lua_modules) {
-        shell $LuaJIT, "-b", $mod->{path}, "/dev/null";
+        shell "$LuaJIT -b '$mod->{path}' /dev/null";
     }
 
     # copy document files over.
@@ -465,7 +465,7 @@ sub do_build ($) {
     }
 
     if (-d $root_dir) {
-        shell "rm -rf ./$root_dir";
+        shell "rm -rf './$root_dir'";
     }
 
     my $dst_lib_dir = File::Spec->catfile($root_dir, "lib");
@@ -473,7 +473,7 @@ sub do_build ($) {
 
     if ($server_build) {
         my $restydoc_index = find_restydoc_index();
-        shell $restydoc_index, "--outdir", $root_dir, ".";
+        shell "$restydoc_index --outdir '$root_dir' .";
     }
 
     for my $mod (@lua_modules) {
@@ -629,7 +629,7 @@ _EOC_
     }
 
     $TarBall = "$root_dir.tar.gz";
-    shell "tar", "-cvzf", $TarBall, $root_dir;
+    shell "tar -cvzf '$TarBall' '$root_dir'";
 
     #if ($server_build) {
     #err "something bad bad bad.\n";
@@ -835,12 +835,10 @@ sub do_upload {
     # upload the tar ball to the package server with the github access token.
 
     # TODO we should migrate from curl to a Lua script via the resty utility.
-    shell("curl", $verbose ? "-vv" : (), "-sS", "-i", "-A",
-          "opm $Version ($Config::Config{archname}, perl $^V)",
-          "-H", "X-File: $TarBall", "-H", "X-File-Checksum: $md5sum",
-          "-H", "X-Account: $account", "-H", "X-Token: $token",
-          "-T", $TarBall,
-          "$upload_url/api/pkg/upload");
+    shell("curl " . ($verbose ? "-vv " : "") . "-sS -i -A '$UserAgent'"
+          . " -H 'X-File: $TarBall' -H 'X-File-Checksum: $md5sum'"
+          . " -H 'X-Account: $account' -H 'X-Token: $token'"
+          . " -T '$TarBall' '$upload_url/api/pkg/upload'");
 }
 
 sub find_luajit {
@@ -1270,7 +1268,7 @@ sub install_target ($$) {
     my $header_file = $ctx->{header_file};
 
     warn "  Downloading $url\n";
-    shell "curl", "-A", $UserAgent, "-o", $dist_file_path, "-D", $header_file, $url;
+    shell "curl -A '$UserAgent' -o '$dist_file_path' -D '$header_file' '$url'";
 
     open $in, $header_file or
         err "failed to open $header_file for reading: $!\n";
@@ -1317,10 +1315,10 @@ sub install_target ($$) {
     (my $dist_dir = $dist_file) =~ s/\.tar\.gz$//;
 
     if (-d $dist_dir) {
-        shell "rm", "-rf", $dist_dir;
+        shell "rm -rf '$dist_dir'";
     }
 
-    shell "tar", "-xzf", $dist_file;
+    shell "tar -xzf '$dist_file'";
 
     if (!-d $dist_dir) {
         err "the unpacked directory $dist_dir not found under $cache_subdir.\n";
@@ -2120,11 +2118,9 @@ sub err (@) {
     die "ERROR: ", @_;
 }
 
-sub shell (@) {
-    #warn join(" ", map { /["?&;|\s]/ ? "'$_'" : $_ } @_), "\n";
-
-    if (system(@_) != 0) {
-        my $cmd = join(" ", map { /["?&;|\s]/ ? "'$_'" : $_ } @_),
+sub shell ($) {
+    my $cmd = shift;
+    if (system($cmd) != 0) {
         err "failed to run command $cmd\n";
     }
 }
