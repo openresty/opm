@@ -591,15 +591,23 @@ For opm
 -------
 
 The next OpenResty release (*after* `1.11.2.1`) will include and install `opm` by default. So usually
-you do not need to install `opm` yourself. If you really want to update to the latest version of
+you do not need to install `opm` yourself.
+
+If you really want to update to the latest version of
 `opm` in the code repository, then just copy the file `bin/opm` in the repository over to
 `<openresty-prefix>/bin/` where `<openresty-prefix>` is the value of the `--prefix` option of
 `./configure` while you are building your OpenResty (defaults to `/usr/local/openresty/`).
 
+```bash
+# <openresty-prefix> defaults to `/usr/local/openresty/`
+# unless you override it when building OpenResty yourself.
+sudo cp bin/opm <openresty-prefix>/bin/
+```
+
 If you are using an older version of OpenResty that does *not* include `opm` by default, then
 you should also create the following directories:
 
-```
+```bash
 cd <openresty-prefix>
 sudo mkdir -p site/lualib site/manifest site/pod
 ```
