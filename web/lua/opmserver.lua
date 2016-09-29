@@ -1483,12 +1483,12 @@ do
 
         local i = 0
         for _, row in ipairs(rows) do
-            local uploader = row.uploader
+            local uploader = row.uploader_name
             local org = row.org_name
             local pkg = row.package_name
 
             local account
-            if org and org ~= ngx.null then
+            if org and org ~= ngx_null then
                 account = org
 
             else
