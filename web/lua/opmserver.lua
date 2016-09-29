@@ -951,6 +951,11 @@ do
         for i, item in ipairs(list) do
             bits[i] = quote_sql_str(item)
         end
+
+        if #bits == 0 then
+            return "'{}'"
+        end
+
         return "ARRAY[" .. tab_concat(bits, ", ") .. "]"
     end
 end
@@ -1124,7 +1129,7 @@ do
             assert(r.login)
 
             local account
-            if r.org then
+            if r.org and r.org ~= "" and r.org ~= ngx_null then
                 account = r.org
             else
                 account = r.login
@@ -1144,20 +1149,29 @@ do
             end
 
             local name = r.name
-            if not name or name == "" then
+            if not name or name == "" or name == ngx_null then
                 name = r.login
             end
 
-            local title = "FAILED: " .. account .. "/" .. r.pkg
-                          .. " " .. r.version
+            local version = r.version
+            if not version or version == "" or version == ngx_null then
+                version = ""
+            end
 
-            local content = data.reason or "unknown internal error"
+            local title = "FAILED: " .. account .. "/" .. r.pkg
+                          .. " " .. version
+
+            local content = data.reason
+            if not content or content == "" or content == ngx_null then
+                content = "unknown internal error"
+            end
+
             local body = tab_concat{
                 "Dear ", name, ",\n\n",
                 "I am the indexer program on the OPM package server.\n\n",
                 "I just ran into a fatal error ",
                 "while processing your package ", account, "/",
-                r.pkg, " ", r.version, ", which was recently uploaded at ",
+                r.pkg, " ", version, ", which was recently uploaded at ",
                 r.created_at, " as Task No. ", id,
                 ".\n\nThe details are as follows. ",
                 "If you still have no clues about the issue,",

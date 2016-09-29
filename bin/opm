@@ -64,7 +64,8 @@ sub search_pkg_name ($$);
 sub test_version_spec ($$$$$);
 
 GetOptions("h|help",          \(my $help),
-           "cwd",             \(my $install_into_cwd))
+           "cwd",             \(my $install_into_cwd),
+           "verbose",         \(my $verbose))
    or usage(1);
 
 if ($help) {
@@ -589,7 +590,17 @@ sub do_build ($) {
         }
     }
 
-    $main_module =~ s/^\Q$lib_dir\E/lib/;
+    {
+        my $a_file = realpath($main_module);
+        my $b_dir = realpath($lib_dir);
+
+        if ($a_file =~ s/^\Q$b_dir\E/lib/) {
+            $main_module = $a_file;
+
+        } else {
+            err "$dist_file: cannot rewrite $main_module from $lib_dir to lib/";
+        }
+    }
 
     {
         my $outfile = "$root_dir/dist.ini";
@@ -824,7 +835,8 @@ sub do_upload {
     # upload the tar ball to the package server with the github access token.
 
     # TODO we should migrate from curl to a Lua script via the resty utility.
-    shell("curl", "-sS", "-i", "-A", "opm $Version ($Config::Config{archname}, perl $^V)",
+    shell("curl", $verbose ? "-vv" : (), "-sS", "-i", "-A",
+          "opm $Version ($Config::Config{archname}, perl $^V)",
           "-H", "X-File: $TarBall", "-H", "X-File-Checksum: $md5sum",
           "-H", "X-Account: $account", "-H", "X-Token: $token",
           "-T", $TarBall,
