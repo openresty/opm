@@ -35,9 +35,7 @@ Table of Contents
 Status
 ======
 
-This is still under early active development and it is not complete nor fully usable yet.
-
-Check back often ;)
+Experimental.
 
 Synopsis
 ========
@@ -289,35 +287,6 @@ The name can only contain letters, digits, and dashes (`-`).
 This key is mandatory.
 
 [Back to TOC](#table-of-contents)
-
-Table of Contents
-=================
-
-* [Name](#name)
-* [Status](#status)
-* [Synopsis](#synopsis)
-* [Description](#description)
-* [Usage](#usage)
-* [Author Workflow](#author-workflow)
-* [File dist.ini](#file-distini)
-    * [name](#name)
-    * [abstract](#abstract)
-    * [version](#version)
-    * [author](#author)
-    * [license](#license)
-    * [requires](#requires)
-    * [repo_link](#repo_link)
-    * [is_original](#is_original)
-    * [lib_dir](#lib_dir)
-    * [exclude_files](#exclude_files)
-    * [main_module](#main_module)
-    * [doc_dir](#doc_dir)
-* [File .opmrc](#file-opmrc)
-* [Prerequisites](#prerequisites)
-    * [For opm](#for-opm)
-* [TODO](#todo)
-* [Author](#author)
-* [Copyright and License](#copyright-and-license)
 
 abstract
 --------
@@ -629,8 +598,6 @@ too old (should be at least `5.10.1`), and your curl supports SNI.
 TODO
 ====
 
-* Add rate limiting to the GitHub API on the package server.
-* Add automatic email notification for the package processing results on the package server.
 * Add `opm doctor` command to check if there is any inconsistency in the current opm package installation tree.
 * Add `opm files <package>` command to list all the files in the specified package.
 * Add `opm whatprovides <package>` command to find out which package the specified file belongs to.
