@@ -80,6 +80,10 @@ if ($cmd eq '-v') {
     exit;
 }
 
+# explicitly clear the environments to avoid breaking luajit and resty.
+delete $ENV{LUA_PATH};
+delete $ENV{LUA_CPATH};
+
 for ($cmd) {
     if ($_ eq 'get' || $_ eq 'install') {
         check_lock_file();
