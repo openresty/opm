@@ -1827,6 +1827,8 @@ sub do_info {
             $i++;
         }
 
+        my $requires =  "" if not defined $default_sec->{requires};
+
         print <<_EOC_;
 Name             : $name
 Version          : $default_sec->{version}
@@ -1835,7 +1837,7 @@ Author           : $default_sec->{author}
 Account          : $meta_account
 Code Repo        : $default_sec->{repo_link}
 License          : $license_lines
-Requires         : $default_sec->{requires}
+Requires         : $requires
 Original Work    : $default_sec->{is_original}
 _EOC_
     }
