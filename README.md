@@ -627,7 +627,7 @@ Although it is possible for the user to manually switch to the HTTP protocol
 by editing the `download_server` and/or `upload_server` keys in her own `~/.opmrc` file.
 The `opm` client tool also always verifies the SSL certificates of the remote OPM package server (via `curl` right now).
 
-Similarly, the OPM package server also always uses SSL/TLS to talk to remote services provided by GitHub and Mailgun.
+Similarly, the OPM package server always uses TLS to talk to remote services provided by GitHub and Mailgun.
 These remote sites' SSL certificates are also always verified on the server side. This cannot be turned off by the user.
 
 The OPM package server uses PostgreSQL's `pgcrypto` extension to encrypt the authors' GitHub personal access tokens
