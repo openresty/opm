@@ -256,8 +256,19 @@ sub do_build ($) {
         err "$dist_file: bad \"repo_link\" value: $repo_link\n";
     }
 
-    if ($repo_link =~ m{github\.com/([-\w]+)}) {
-        $RepoLinkUser = $1;
+    if ($repo_link =~ m{\bgithub\.com\b}) {
+        if ($repo_link !~ m{github\.com/([^/\s]+)/([^/\s]+)}) {
+            err "$dist_file: bad GitHub repo link: $repo_link\n";
+        }
+
+        my $user = $1;
+        my $proj = $2;
+        if ($proj ne $dist_name) {
+            err "$dist_file: project \"$proj\" in repo_link ",
+                "\"$repo_link\" does not match name \"$dist_name\".\n";
+        }
+
+        $RepoLinkUser = $user;
         $RepoLink = $repo_link;
     }
 
