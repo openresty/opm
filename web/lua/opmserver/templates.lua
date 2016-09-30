@@ -177,7 +177,7 @@ i = i + 1 output[i] = stash_get(stash, 'total_uploads')
 i = i + 1 output[i] = ' successful uploads\n       across '
 -- line 16 "index.tt2"
 i = i + 1 output[i] = stash_get(stash, 'package_count')
-i = i + 1 output[i] = ' different package names from '
+i = i + 1 output[i] = ' distinct package names from '
 -- line 16 "index.tt2"
 i = i + 1 output[i] = stash_get(stash, 'uploader_count')
 i = i + 1 output[i] = '\n       contributors. Come on, OPM authors!</p>\n    <table class="recent">\n    <tbody>'

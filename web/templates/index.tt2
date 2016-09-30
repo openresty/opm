@@ -13,7 +13,7 @@
     <p>Please read the <a href="https://github.com/openresty/opm#readme">opm documentation</a> for more details.</p>
     <h2>Recent Uploads</h2>
     <p>We already have [% total_uploads %] successful uploads
-       across [% package_count %] different package names from [% uploader_count %]
+       across [% package_count %] distinct package names from [% uploader_count %]
        contributors. Come on, OPM authors!</p>
     <table class="recent">
     <tbody>
