@@ -120,7 +120,7 @@ for ($cmd) {
         do_update();
 
     } elsif ($_ eq 'search') {
-        do_search(shift @ARGV);
+        do_search(@ARGV);
 
     } else {
         warn "ERROR: unknown command: $cmd\n\n";
@@ -2028,11 +2028,17 @@ sub do_update {
 }
 
 sub do_search {
-    my $query = shift;
+    if (@_ == 0) {
+        err "no packages specified for search.\n";
+    }
+
+    my $query = join " ", @_;
 
     if (!$query) {
         err "no query specified.\n";
     }
+
+    $query =~ s/\s+/ /g;
 
     if ($query =~ /[^- .\w]/) {
         err "bad query: $query\n";
@@ -2168,8 +2174,9 @@ Commands:
     remove PACKAGE...   Remove (or uninstall) the specified packages. Short package names
                         like "lua-resty-lock" are acceptable.
 
-    search PATTERN      Search on the server for packages matching the user pattern in their
-                        names or abstracts.
+    search QUERY...     Search on the server for packages matching the user queries in their
+                        names or abstracts. Multiple queries can be specified and they must
+                        fulfilled at the same time.
 
     server-build        Build a final package tarball ready for distribution on the server.
                         This command is usually used by the server to verify the uploaded
