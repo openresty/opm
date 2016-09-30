@@ -2056,7 +2056,9 @@ sub do_search {
             "led by https:// or http://.\n";
     }
 
-    my $url = "$download_url/api/pkg/search?q=$query";
+    (my $escaped_query = $query) =~ s/ /%20/g;
+
+    my $url = "$download_url/api/pkg/search?q=$escaped_query";
     my $out = `curl -i -sS '$url' 2>&1`;
     my $status;
     if ($? == 0 && $out =~ m{^ HTTP/1\.\d \s+ (\d+) \b}ix) {
