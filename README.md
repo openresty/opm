@@ -299,6 +299,9 @@ Abstract for the current package.
 abstract = New FFI-based Lua API for the ngx_lua module
 ```
 
+You can use UTF-8 characters in this field value. Invalid UTF-8 sequences, however,
+will lead to errors in `opm build` or `opm server-build` commands.
+
 This key is mandatory.
 
 [Back to TOC](#table-of-contents)
@@ -337,6 +340,9 @@ be separated by a comma, with optional surrounding spaces.
 ```ini
 author = Yichun Zhang (agentzh), Dejiang Zhu
 ```
+
+You can use UTF-8 characters in this field value. Invalid UTF-8 sequences, however,
+will lead to errors in `opm build` or `opm server-build` commands.
 
 This key is mandatory.
 
@@ -574,6 +580,9 @@ the current package):
 * `COPYING`
 * `COPYRIGHT`
 * `Changes.md`, `Changes.markdown`, or `Changes.pod`
+
+You can use UTF-8 characters in these documentation files. Other multi-byte character
+encodings must be avoided.
 
 This key is optional.
 
