@@ -251,7 +251,7 @@ sub process_cycle () {
         }
 
         if (!chdir $dir) {
-            $errstr = "failed to chdir to $dir $!";
+            $errstr = "failed to chdir to $dir: $!";
             warn $errstr;
             goto FAIL_UPLOAD;
         }
