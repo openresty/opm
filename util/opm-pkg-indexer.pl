@@ -26,7 +26,7 @@ sub gen_backup_file_prefix ();
 sub shell (@);
 sub read_ini ($);
 
-my $json_xs = JSON::XS->new->utf8;
+my $json_xs = JSON::XS->new;
 
 my $version = '0.0.1';
 

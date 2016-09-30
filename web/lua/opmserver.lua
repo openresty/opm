@@ -1079,6 +1079,8 @@ do
                 return log_and_out_err(ctx, 400, "no dep_versions defined")
             end
 
+            -- ngx.log(ngx.WARN, "abstract: ", abstract)
+
             sql = "update uploads set indexed = true"
                   .. ", updated_at = now(), authors = "
                   .. authors_v .. ", repo_link = "
