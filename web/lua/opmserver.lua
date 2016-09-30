@@ -1037,7 +1037,12 @@ do
                 return log_and_out_err(ctx, 400, "no repo_link defined")
             end
 
-            local is_orig = data.is_original and "true" or "false"
+            local is_orig = data.is_original
+            if not is_orig or is_orig == ngx_null or is_orig == 0 then
+                is_orig = "false"
+            else
+                is_orig = "true"
+            end
 
             local abstract = data.abstract
             if not abstract then
