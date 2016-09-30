@@ -1455,11 +1455,11 @@ do
         local ctx = {}
 
         if not query or query == "" or #query > 128 then
-            return log_and_out_err(ctx, 400, "bad search query value")
+            return log_and_out_err(ctx, 400, "bad search query value.")
         end
 
-        if not re_find(query, [[^[-.\w]+$]], "jo") then
-            return log_and_out_err(ctx, 400, "bad search query value")
+        if re_find(query, [=[[^-. \w]]=], "jo") then
+            return log_and_out_err(ctx, 400, "bad search query value.")
         end
 
         local sql = "select abstract, package_name, orgs.login as org_name"
