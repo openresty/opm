@@ -224,7 +224,7 @@ lib_dir = lib
 doc_dir = lib
 repo_link = https://github.com/openresty/lua-resty-core
 main_module = lib/resty/core/base.lua
-requires = luajit, openresty = 1.11.2.1, openresty/lua-resty-lrucache >= 0.04
+requires = luajit, openresty/lua-resty-lrucache >= 0.04
 ```
 
 As we can see, the `dist.ini` file is using the popular [INI file format](https://en.wikipedia.org/wiki/INI_file).
