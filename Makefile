@@ -16,7 +16,7 @@ $(templates_lua): $(tt2_files)
 	lemplate --compile $^ > $@
 
 .PHONY: test
-test: | initdb reload
+test: | initdb restart
 	#./bin/opm build
 	#-time ./bin/opm upload
 	rm -rf /tmp/final /tmp/failed /tmp/original *.pid

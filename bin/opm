@@ -6,6 +6,7 @@ use v5.10.1;
 use strict;
 use warnings;
 
+use Encode qw( decode );
 use FindBin ();
 use File::Find ();
 use File::Path qw( make_path );
@@ -62,6 +63,7 @@ sub init_installation_ctx ($);
 sub cmp_version ($$);
 sub search_pkg_name ($$);
 sub test_version_spec ($$$$$);
+sub check_utf8_field ($$$);
 
 GetOptions("h|help",          \(my $help),
            "cwd",             \(my $install_into_cwd),
@@ -200,6 +202,8 @@ sub do_build ($) {
         err "$dist_file: key \"author\" not found in the default section.\n";
     }
 
+    check_utf8_field($dist_file, 'author', $author);
+
     my @authors = split /\s*,\s*/, $author;
     if (grep { !defined || !/[a-zA-Z]/ } @authors) {
         err "$dist_file: bad value in the \"author\" field of the default section: $author\n";
@@ -242,21 +246,23 @@ sub do_build ($) {
         err "$dist_file: key \"abstract\" not found in the default section.\n";
     }
 
+    check_utf8_field($dist_file, 'abstract', $dist_abstract);
+
     my $repo_link = delete $default_sec->{repo_link};
     if (!$repo_link) {
         err "$dist_file: key \"repo_link\" not found in the default section.\n";
     }
 
     if ($repo_link !~ m{^https?://}g) {
-        err "$dist_file: bad repo_link value ",
+        err "$dist_file: bad \"repo_link\" value ",
             "(must be a http:// or https:// link): $repo_link\n";
     }
 
-    if ($repo_link =~ /["'\s<>{}]/) {
+    if ($repo_link =~ /["'\s<>{}]/s) {
         err "$dist_file: bad \"repo_link\" value: $repo_link\n";
     }
 
-    if ($repo_link =~ m{\bgithub\.com\b}) {
+    if ($repo_link =~ m{\bgithub\.com\b}s) {
         if ($repo_link !~ m{github\.com/([^/\s]+)/([^/\s]+)}) {
             err "$dist_file: bad GitHub repo link: $repo_link\n";
         }
@@ -270,6 +276,14 @@ sub do_build ($) {
 
         $RepoLinkUser = $user;
         $RepoLink = $repo_link;
+    }
+
+    if ($repo_link =~ /[[:^ascii:]]/s) {
+        err "$dist_file: repo_link contains non-ASCII characters.\n";
+    }
+
+    if ($repo_link =~ /[[:^print:]]/s) {
+        err "$dist_file: repo_link contains non-printable characters.\n";
     }
 
 =begin comment
@@ -2141,6 +2155,17 @@ sub test_version_spec ($$$$$) {
 
     err "$name $op $ver required but found $name ",
         "$actual_ver according to $source.\n";
+}
+
+sub check_utf8_field ($$$) {
+    my ($file, $key, $str) = @_;
+    eval {
+        decode( 'UTF-8', $str, Encode::FB_CROAK )
+    };
+    if ($@) {
+        (my $err = $@) =~ s/ at \S.+? line \d+\.\n?$//;
+        err "$file key \"$key\" contains invalid UTF-8 sequences: $err.\n";
+    }
 }
 
 sub err (@) {
