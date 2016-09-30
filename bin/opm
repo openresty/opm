@@ -1004,7 +1004,7 @@ sub install_target ($$) {
                 my $out = `$resty -e 'print(jit.version)'`;
                 if ($? != 0 || !defined $out || $out !~ /^LuaJIT (\d+\.\d+\.\d+)/) {
                     err "$name is required but is not available ",
-                        "according to $resty: ", $out // '';
+                        "according to $resty: ", $out // '', "\n";
                 }
 
                 my $luajit_ver = $1;
@@ -1016,7 +1016,7 @@ sub install_target ($$) {
                 my $out = `$resty -e 'print(ngx.config.nginx_version)'`;
                 if ($? != 0 || !defined $out || $out !~ /^(\d+)(\d{3})(\d{3})$/) {
                     err "$name is required but is not available ",
-                        "according to $resty: ", $out // '';
+                        "according to $resty: ", $out // '', "\n";
                 }
 
                 my $nginx_ver = join ".", $1 + 0, $2 + 0, $3 + 0;
@@ -1029,7 +1029,7 @@ sub install_target ($$) {
                 my $out = `$resty -e 'print(ngx.config.ngx_lua_version)'`;
                 if ($? != 0 || !defined $out || $out !~ /^(\d{4,})$/) {
                     err "$name is required but is not available ",
-                        "according to $resty: ", $out // '';
+                        "according to $resty: ", $out // '', "\n";
                 }
 
                 my $v = $1;
@@ -1049,7 +1049,7 @@ sub install_target ($$) {
                 my $out = `$resty -v 2>&1`;
                 if ($? != 0 || !defined $out || $out !~ m!\bopenresty/(\d+(?:\.\d+){3})!) {
                     err "$name is required but is not available ",
-                        "according to $resty: ", $out // '';
+                        "according to $resty: ", $out // '', "\n";
                 }
 
                 my $openresty_ver = $1;
