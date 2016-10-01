@@ -602,7 +602,74 @@ This key is optional.
 File .opmrc
 ===========
 
-TODO
+The `.opmrc` file under the current system user's home directory configures various important settings
+for the current system user. Only library
+authors should care about this file since commands like `opm get`, `opm search`, or `opm list` do
+not need this file at all.
+
+Like [file dist-ini](#file-distini), this file is also in the [INI file format](https://en.wikipedia.org/wiki/INI_file).
+When this file is absent, the first run of the `opm build` or `opm upload` commands will automatically generate
+a boilerplate file for you to fill out later yourself.
+
+This file recognizes the following keys:
+
+github_account
+--------------
+
+Specifies your GitHub account name, either your GitHub user login name or
+github organization that you owns.
+
+For example, the document writer's GitHub login name is `agentzh` while he
+also owns the GitHub organization `openresty`. So he can choose to upload
+his packages either under the `agentzh` or `openresty` with the same GitHub
+access token (defined via the [github_token](#github_token) key) by configuring
+this `github_account` key.
+
+This key is required.
+
+github_token
+------------
+
+Specifies your GitHub personal access token used for package uploads.
+
+You can generate a GitHub personal access token from the GitHub [web UI](https://github.com/settings/tokens).
+
+While you are generating your token on GitHub's web site, it is crucial to assign the right permissions (or `scopes`
+in GitHub's terminology) to your token. The `opm` tool chain requires that the token must contain the `user:email`
+scope. Optionally, you can also assign the `read:org` scope at the same time, which is required if you want to
+upload your OpenResty packages under an organization name that you owns.
+
+The GitHub personal access tokens are like passwords, so be very careful when handling it. Never share it with
+the rest of the world otherwise anybody can upload packages to the OPM package server under *your* name.
+
+Due to security considerations, the package server also rejects GitHub personal access tokens that are too permissive
+(that is, having more scopes than needed). The package server caches a sorted hash of your tokens in its own database,
+so that the server does not have to query GitHub upon subsequent uploads. Because the tokens are hashed, the package
+server can only verifies that your token is correct but cannot recover your original token just from the database.
+
+This key is required.
+
+upload_server
+-------------
+
+Specifies the OPM server for uploading packages. Defaults to `https://opm.openresty.org`. It is strongly recommended
+to use `https` (which is the default) for communication privacy.
+
+The official OPM package server is `https://opm.openresty.org`. You could, however, point this key to your own or
+any 3rd-party servers (then you are at your own risk).
+
+This key can have a different value than [download_server](#download_server).
+
+download_server
+---------------
+
+Specifies the OPM server for downloading packages. Defaults to `https://opm.openresty.org`. It is strongly recommended
+to use `https` (which is the default) for communication privacy.
+
+The official OPM package server is `https://opm.openresty.org`. You could, however, point this key to your own or
+any 3rd-party servers (then you are at your own risk).
+
+This key can have a different value than [upload_server](#upload_server).
 
 [Back to TOC](#table-of-contents)
 
