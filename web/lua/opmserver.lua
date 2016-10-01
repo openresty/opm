@@ -119,7 +119,6 @@ function _M.do_upload()
     -- extract the github personal access token from the request.
 
     local token = ngx_var.http_x_token
-    ctx.token = token
 
     if not re_find(token, [[^[a-f0-9]{40}$]], "ijo") then
         return log_and_out_err(ctx, 400, "bad github personal access token.")
@@ -909,8 +908,7 @@ end
 
 
 function log_err(ctx, ...)
-    ngx.log(ngx.ERR, "[opm] [", ctx.account or "",
-            "] [", ctx.token or "", "] ", ...)
+    ngx.log(ngx.ERR, "[opm] [", ctx.account or "", "] ", ...)
 end
 
 
