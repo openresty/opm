@@ -64,6 +64,7 @@ sub cmp_version ($$);
 sub search_pkg_name ($$);
 sub test_version_spec ($$$$$);
 sub check_utf8_field ($$$);
+sub check_user_file_path ($$$$);
 
 GetOptions("h|help",          \(my $help),
            "cwd",             \(my $install_into_cwd),
@@ -358,9 +359,7 @@ sub do_build ($) {
     }
 
     if ($lib_dir) {
-        if (!-d $lib_dir) {
-            err "$dist_file: lib_dir \"$lib_dir\" directory found.\n";
-        }
+        check_user_file_path($dist_file, "lib_dir", $lib_dir, 'd');
 
     } else {
         $lib_dir = 'lib';
@@ -370,8 +369,8 @@ sub do_build ($) {
     }
 
     my $user_main_module = delete $default_sec->{main_module};
-    if ($user_main_module && !-f $user_main_module) {
-        err "$dist_file: main_module file $user_main_module not found.\n";
+    if ($user_main_module) {
+        check_user_file_path($dist_file, "user_main_module", $user_main_module, 'f');
     }
 
     # process Lua module files.
@@ -530,9 +529,7 @@ sub do_build ($) {
     my @module_docs;
 
     if ($doc_dir) {
-        if (!-d $doc_dir) {
-            err "$dist_file: doc_dir \"$doc_dir\" directory found.\n";
-        }
+        check_user_file_path($dist_file, "doc_dir", $doc_dir, 'd');
 
     } else {
         $doc_dir = 'lib';
@@ -2165,6 +2162,32 @@ sub check_utf8_field ($$$) {
     if ($@) {
         (my $err = $@) =~ s/ at \S.+? line \d+\.\n?$//;
         err "$file key \"$key\" contains invalid UTF-8 sequences: $err.\n";
+    }
+}
+
+sub check_user_file_path ($$$$) {
+    my ($file, $key, $val, $type) = @_;
+
+    if ($val =~ /\.\./s) {
+        err "$file: $key looks malicious since it contains \"..\":  $val";
+    }
+
+    if (File::Spec->file_name_is_absolute($val)) {
+        err "$file: $key is an absolute path: $val\n";
+    }
+
+    if ($type eq 'f') {
+        if (!-f $val) {
+            err "$file: $key file $val not found.\n";
+        }
+
+    } elsif ($type eq 'd') {
+        if (!-d $val) {
+            err "$file: $key directory $val not found.\n";
+        }
+
+    } else {
+        err "unknown type: $type\n";
     }
 }
 
