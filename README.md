@@ -629,6 +629,8 @@ cd <openresty-prefix>
 sudo mkdir -p site/lualib site/manifest site/pod
 ```
 
+Note that at least OpenResty 1.11.2.1 is needed for `opm` to work properly.
+
 To run the `opm` tool, you just need `perl`, `tar`, and `curl` to run the `opm` tool. Ensure
 that your perl is not too old (should be at least `5.10.1`), and your curl supports `SNI`.
 
