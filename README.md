@@ -50,9 +50,14 @@ opm --help
 # search package names and abstracts with the user pattern "lock".
 opm search lock
 
-# account is a github account (either a github user or a github org);
-# lua-resty-foo is the library name under that github account.
-opm get some_account/lua-resty-foo
+# search package names and abstracts with multiple patterns "lru" and "cache".
+opm search lru cache
+
+# install a package named lua-resty-foo under the name of some_author
+opm get some_author/lua-resty-foo
+
+# get a list of lua-resty-foo packages under all authors.
+opm get lua-resty-foo
 
 # show the details of the installed package specified by name.
 opm info lua-resty-foo
