@@ -516,6 +516,8 @@ lib_dir
 
 Specifies the root directory of the library files (`.lua` files, for example).
 
+You must not use absolute directory paths or paths containing `..` as the value.
+
 Default to `lib`.
 
 This key is optional.
@@ -560,6 +562,8 @@ version = 0.08
 When this key is not specified, then `opm build` will try to find the main module
 file automatically (which might be wrong though).
 
+You must not use absolute file paths or paths containing `..` as the value.
+
 This key is optional.
 
 [Back to TOC](#table-of-contents)
@@ -568,6 +572,8 @@ doc_dir
 -------
 
 Specifies the root directory of the documentation files. Default to `lib`.
+
+You must not use absolute directory paths or paths containing `..` as the value.
 
 `opm build` always tries to collect the documentation files in either the Markdown (`.md` or `.markdown`)
 or the POD (`.pod`) format.
