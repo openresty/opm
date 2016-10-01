@@ -106,83 +106,83 @@ end
 
 
 function _M.send_mail(recipient, recipient_name, mail_title, mail_body)
-	local sock = socket_tcp()
+    local sock = socket_tcp()
     local host = "smtp.mailgun.org"
 
-	local ok, err = sock:connect(host, 587)
-	if not ok then
+    local ok, err = sock:connect(host, 587)
+    if not ok then
         return nil, "failed to connect to " .. (host or "") .. ":587: "
                     .. (err or "")
     end
 
-	local line, err = sock:receive()
+    local line, err = sock:receive()
     if not line then
         return nil, "failed to receive the first line from "
                     .. (host or "") .. ":587: " .. (err or "")
     end
-	-- ngx.log(ngx.WARN, line)
+    -- ngx.log(ngx.WARN, line)
 
-	ok, err = send_cmd(sock, "EHLO " .. host)
+    ok, err = send_cmd(sock, "EHLO " .. host)
     if not ok then
         return nil, err
     end
 
-	ok, err = send_cmd(sock, "STARTTLS")
+    ok, err = send_cmd(sock, "STARTTLS")
     if not ok then
         return nil, err
     end
 
-	sess, err = sock:sslhandshake(nil, host, true)
+    sess, err = sock:sslhandshake(nil, host, true)
     if not sess then
         return nil, err
     end
 
-	ok, err = send_cmd(sock, "EHLO " .. host)
+    ok, err = send_cmd(sock, "EHLO " .. host)
     if not ok then
         return nil, err
     end
 
-	local auth = encode_base64("\0" .. account .. "\0" .. password)
+    local auth = encode_base64("\0" .. account .. "\0" .. password)
 
-	ok, err = send_cmd(sock, "AUTH PLAIN " .. auth)
+    ok, err = send_cmd(sock, "AUTH PLAIN " .. auth)
     if not ok then
         return nil, err
     end
 
-	local ok, err = send_cmd(sock, "MAIL FROM:<" .. sender_addr .. ">")
+    local ok, err = send_cmd(sock, "MAIL FROM:<" .. sender_addr .. ">")
     if not ok then
         return nil, err
     end
 
-	local ok, err = send_cmd(sock, "RCPT TO:<" .. recipient .. ">")
+    local ok, err = send_cmd(sock, "RCPT TO:<" .. recipient .. ">")
     if not ok then
         return nil, err
     end
 
-	local bytes, err = sock:send{
+    local bytes, err = sock:send{
         "DATA\r\n",
-	    "FROM: ", sender_name, " <", sender_addr, ">\r\n",
-	    "Subject: ", mail_title, "\r\n",
-	    "To: ", recipient_name, " <", recipient, ">\r\n",
-	    "Content-Transfer-Encoding: base64\r\n",
-	    "Content-Type: text/plain; charset=utf-8\r\n\r\n",
-	    encode_base64(mail_body), "\n",
+        "FROM: ", sender_name, " <", sender_addr, ">\r\n",
+        "Subject: ", mail_title, "\r\n",
+        "To: ", recipient_name, " <", recipient, ">\r\n",
+        "Content-Transfer-Encoding: base64\r\n",
+        "Content-Type: text/plain; charset=utf-8\r\n\r\n",
+        encode_base64(mail_body), "\n",
     }
     if not bytes then
         return nil, err
     end
 
-	ok, err = send_cmd(sock, "\r\n.")
+    ok, err = send_cmd(sock, "\r\n.")
     if not ok then
         return nil, err
     end
 
-	ok, err = send_cmd(sock, "QUIT")
+    ok, err = send_cmd(sock, "QUIT")
     if not ok then
         return nil, err
     end
 
-	ok, err = sock:close()
+    ok, err = sock:close()
     if not ok then
         return nil, err
     end
