@@ -370,7 +370,7 @@ sub do_build ($) {
 
     my $user_main_module = delete $default_sec->{main_module};
     if ($user_main_module) {
-        check_user_file_path($dist_file, "user_main_module", $user_main_module, 'f');
+        check_user_file_path($dist_file, "main_module", $user_main_module, 'f');
     }
 
     # process Lua module files.
