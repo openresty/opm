@@ -143,4 +143,17 @@ create aggregate first (
         stype    = anyelement
 );
 
+drop function if exists last_agg(anyelement, anyelement) cascade;
+
+create or replace function last_agg(anyelement, anyelement)
+returns anyelement language sql immutable strict as $$
+        select $1;
+$$;
+
+create aggregate last (
+        sfunc    = last_agg,
+        basetype = anyelement,
+        stype    = anyelement
+);
+
 -- TODO create more indexes to speed up queries in the opmserver web app.
