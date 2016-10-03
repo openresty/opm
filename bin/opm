@@ -65,6 +65,7 @@ sub search_pkg_name ($$);
 sub test_version_spec ($$$$$);
 sub check_utf8_field ($$$);
 sub check_user_file_path ($$$$);
+sub rebase_path ($$$);
 
 GetOptions("h|help",          \(my $help),
            "cwd",             \(my $install_into_cwd),
@@ -509,11 +510,9 @@ sub do_build ($) {
     }
 
     for my $mod (@lua_modules) {
-        my $name = $mod->{name};
-        $name =~ s{-}{/}g;
-        $name .= ".lua";
         my $src = $mod->{path};
-        my $dst = File::Spec->catfile($dst_lib_dir, $name);
+        my $dst = rebase_path($src, $lib_dir, $dst_lib_dir);
+
         (my $dir = $dst) =~ s{[^/]*$}{}g;
         if ($dir && !-d $dir) {
             make_path($dir);
@@ -620,17 +619,8 @@ sub do_build ($) {
         }
     }
 
-    {
-        my $a_file = realpath($main_module);
-        my $b_dir = realpath($lib_dir);
-
-        if ($a_file =~ s/^\Q$b_dir\E/lib/) {
-            $main_module = $a_file;
-
-        } else {
-            err "$dist_file: cannot rewrite $main_module from $lib_dir to lib/";
-        }
-    }
+    $main_module = rebase_path($main_module, $lib_dir, 'lib')
+        or err "$dist_file: cannot rewrite $main_module from $lib_dir to lib/";
 
     {
         my $outfile = "$root_dir/dist.ini";
@@ -2189,6 +2179,19 @@ sub check_user_file_path ($$$$) {
     } else {
         err "unknown type: $type\n";
     }
+}
+
+sub rebase_path ($$$) {
+    my ($a, $a_base, $b_base) = @_;
+
+    my $a_file = realpath($a);
+    my $a_dir = realpath($a_base);
+
+    if ($a_file =~ s/^\Q$a_dir\E/$b_base/) {
+        return $a_file;
+    }
+
+    return undef;
 }
 
 sub err (@) {
