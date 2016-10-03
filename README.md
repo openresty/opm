@@ -747,8 +747,8 @@ downloaded and uploaded package files, to ensure data integrity when transferred
 Credit
 ======
 
-The design of the `opm` tool gets inspiration from various existing package management systems, including but not limited to,
-Perl's `cpan`, RedHat's `yum`, NodeJS's `npm`, and Mac OS X's `homebrew`.
+The design of the `opm` tool gets various inspirations from various existing package management systems, including but not limited to,
+Perl's `cpan` and [Dist::Zilla](http://dzil.org/), RedHat's `yum`, NodeJS's `npm`, and Mac OS X's `homebrew`.
 
 [Back to TOC](#table-of-contents)
 
@@ -759,9 +759,10 @@ TODO
 * Add `opm doctor` command to check if there is any inconsistency in the current opm package installation tree.
 * Add `opm files <package>` command to list all the files in the specified package.
 * Add `opm whatprovides <package>` command to find out which package the specified file belongs to.
-* Add plugin mechanisms to `opm build` (similar to Perl's Dist::Zilla packaging framework).
+* Add plugin mechanisms to `opm build` (similar to Perl's [Dist::Zilla](http://dzil.org/) packaging framework).
 * Add a web site for opm.openresty.org (similar to search.cpan.org).
 * Add support for Lua C modules and LuaJIT FFI modules with standalone C libraries.
+* Add support for 3rd-party NGINX C modules (which can be compiled as NGINX dynamic modules).
 * Add (limited) support for LuaRocks via the special name space `luarocks`, for example,
 
 ```bash
