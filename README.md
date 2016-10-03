@@ -26,9 +26,14 @@ Table of Contents
     * [main_module](#main_module)
     * [doc_dir](#doc_dir)
 * [File .opmrc](#file-opmrc)
+    * [github_account](#github_account)
+    * [github_token](#github_token)
+    * [upload_server](#upload_server)
+    * [download_server](#download_server)
 * [Installation](#installation)
     * [For opm](#for-opm)
 * [Security Considerations](#security-considerations)
+* [Credit](#credit)
 * [TODO](#todo)
 * [Author](#author)
 * [Copyright and License](#copyright-and-license)
@@ -613,6 +618,8 @@ a boilerplate file for you to fill out later yourself.
 
 This file recognizes the following keys:
 
+[Back to TOC](#table-of-contents)
+
 github_account
 --------------
 
@@ -626,6 +633,8 @@ access token (defined via the [github_token](#github_token) key) by configuring
 this `github_account` key.
 
 This key is required.
+
+[Back to TOC](#table-of-contents)
 
 github_token
 ------------
@@ -649,6 +658,8 @@ server can only verifies that your token is correct but cannot recover your orig
 
 This key is required.
 
+[Back to TOC](#table-of-contents)
+
 upload_server
 -------------
 
@@ -659,6 +670,8 @@ The official OPM package server is `https://opm.openresty.org`. You could, howev
 any 3rd-party servers (then you are at your own risk).
 
 This key can have a different value than [download_server](#download_server).
+
+[Back to TOC](#table-of-contents)
 
 download_server
 ---------------
@@ -728,6 +741,14 @@ The server also ensures that the author's personal token is not too permissive b
 
 The `opm` tool chain and server also always perform the MD5 checksum verification upon both the
 downloaded and uploaded package files, to ensure data integrity when transferred over the wire.
+
+[Back to TOC](#table-of-contents)
+
+Credit
+======
+
+The design of the `opm` tool gets inspiration from various existing package management systems, including but not limited to,
+Perl's `cpan`, RedHat's `yum`, NodeJS's `npm`, and Mac OS X's `homebrew`.
 
 [Back to TOC](#table-of-contents)
 
