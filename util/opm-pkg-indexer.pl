@@ -434,6 +434,8 @@ sub process_cycle () {
                         goto FAIL_UPLOAD;
                     }
 
+                    $ver_arg = $ver;
+
                 } else {
                     $op_arg = "";
                     $ver_arg = "";
