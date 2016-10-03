@@ -2110,7 +2110,7 @@ sub search_pkg_name ($$) {
         $status = $1;
 
     } else {
-        err "failed to find package: server error.\n";
+        err "failed to find package: server error: $out\n";
     }
 
     $out =~ s/.*?\r?\n\r?\n//s;
