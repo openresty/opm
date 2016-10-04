@@ -154,10 +154,10 @@ NGINX modules via `opm` in the future. The OpenResty world consists of various
 different kinds of "modules" after all.
 
 We also have plans to allow the user to install LuaRocks packages via `opm`
-through the special user ID `luarocks`. Although it poses a risk of installing
-an OpenResty-agnostic Lua module which may block the NGINX worker processes
-horribly on network I/O. But as the developers of `opm`, we always like choices,
-especially choices given to our users.
+through the special user ID `luarocks`. It poses a risk of installing
+an OpenResty-agnostic Lua module which blocks the NGINX worker processes
+horribly on network I/O, nevertheless, as the developers of `opm`, we always like choices,
+especially those given to our users.
 
 [Back to TOC](#table-of-contents)
 
