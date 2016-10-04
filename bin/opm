@@ -1492,7 +1492,8 @@ sub install_target ($$) {
 
     }
 
-    warn "Package $account/$name $version installed successfully.\n";
+    warn "Package $account/$name $version installed successfully ",
+         "under $install_dir/ .\n";
 
     chdir $cwd
         or err "cannot chdir to $cwd: $!\n";
