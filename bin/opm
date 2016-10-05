@@ -48,6 +48,7 @@ my $SpecialDepPat = qr/^(?:openresty|luajit|ngx_(?:http_)?lua|nginx)$/;
 
 sub err (@);
 sub shell ($);
+sub is_valid_dist_name ($$);
 sub find_sys_install_dir ();
 sub get_install_dir ();
 sub install_file ($$$);
@@ -126,6 +127,9 @@ for ($cmd) {
     } elsif ($_ eq 'search') {
         do_search(@ARGV);
 
+    } elsif ($_ eq 'clean') {
+        do_clean(@ARGV);
+
     } else {
         warn "ERROR: unknown command: $cmd\n\n";
         usage(1);
@@ -184,15 +188,7 @@ sub do_build ($) {
     my $default_sec = delete $data->{default};
 
     my $dist_name = delete $default_sec->{name};
-    if (!$dist_name) {
-        err "$dist_file: key \"name\" not found in the default section.\n";
-    }
-
-    if (length $dist_name < 3
-        || $dist_name =~ /[^-\w]|^(?:nginx|luajit|resty|openresty|opm|restydoc.*|ngx_.*|.*-nginx-module)$/i)
-    {
-        err "$dist_file: bad dist name: $dist_name\n";
-    }
+    is_valid_dist_name($dist_name, $dist_file);
 
     if ($server_build) {
         $account = delete $default_sec->{account}
@@ -2195,6 +2191,54 @@ sub rebase_path ($$$) {
     return undef;
 }
 
+sub do_clean {
+
+    if (@_ == 0) {
+        err "no clean argument specified.\n";
+    }
+
+    if ($_[0] eq 'dist') {
+        my $dist_file = "dist.ini";
+        my $data = read_ini($dist_file);
+        my $default_sec = $data->{default};
+        my $dist_name = $default_sec->{name};
+
+        is_valid_dist_name($dist_name, $dist_file);
+
+        opendir(my $dh, '.')
+            or err "failed to open directory '.': $!\n";
+
+        my @entities = readdir($dh);
+        for my $entity (@entities) {
+
+            if (-d $entity) {
+
+                if ($entity =~ /^\Q$dist_name\E-[.\w]*\d[.\w]*$/) {
+
+                    if (-f "$entity/dist.ini") {
+                        shell "rm -rf $entity";
+                        print "removed directory $entity\n";
+                    }
+                }
+
+            } else {
+
+                if ($entity =~ /^\Q$dist_name\E-[.\w]*\d[.\w]*\.tar\.gz$/) {
+                    unlink $entity or die "failed to rm $entity: $!";
+                    print "removed file $entity\n";
+                }
+            }
+        }
+
+        closedir $dh
+            or err "failed to close directory $dh: $!\n";
+
+    } else {
+        err "unrecognized argument for clean: $_[0]\n\trecognized clean arguments are: " .
+            join(", ", ('dist')), "\n";
+    }
+}
+
 sub err (@) {
     die "ERROR: ", @_;
 }
@@ -2203,6 +2247,19 @@ sub shell ($) {
     my $cmd = shift;
     if (system($cmd) != 0) {
         err "failed to run command $cmd\n";
+    }
+}
+
+sub is_valid_dist_name ($$) {
+    my ($dist_name, $dist_file) = @_;
+    if (!$dist_name) {
+        err "$dist_file: key \"name\" not found in the default section.\n";
+    }
+
+    if (length $dist_name < 3
+        || $dist_name =~ /[^-\w]|^(?:nginx|luajit|resty|openresty|opm|restydoc.*|ngx_.*|.*-nginx-module)$/i)
+    {
+        err "$dist_file: bad dist name: $dist_name\n";
     }
 }
 
@@ -2223,6 +2280,10 @@ Options:
 Commands:
     build               Build from the current working directory a package tarball ready
                         for uploading to the server.
+
+    clean ARGUMENT...   Do clean-up work. Currently the valid argument is "dist", which
+                        cleans up the temporary files and directories created by the "build"
+                        command.
 
     info PACKAGE...     Output the detailed information (or meta data) about the specified
                         packages.  Short package names like "lua-resty-lock" are acceptable.

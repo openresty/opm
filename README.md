@@ -109,6 +109,9 @@ opm build
 # personal access tokens. the first run of "opm upload" will create
 # a boilerplate ~/.opmrc file for you.
 opm upload
+
+# cleaning up the leftovers of the opm build command.
+opm clean dist
 ```
 
 Description
@@ -180,6 +183,10 @@ Commands:
     build               Build from the current working directory a package tarball ready
                         for uploading to the server.
 
+    clean ARGUMENT...   Do clean-up work. Currently the valid argument is "dist", which
+                        cleans up the temporary files and directories created by the "build"
+                        command.
+
     info PACKAGE...     Output the detailed information (or meta data) about the specified
                         packages.  Short package names like "lua-resty-lock" are acceptable.
 
@@ -209,7 +216,6 @@ Commands:
 
     upload              Upload the package tarball to the server. This command always invokes
                         the build command automatically right before uploading.
-
 ```
 
 [Back to TOC](#table-of-contents)
@@ -794,7 +800,6 @@ TODO
 ====
 
 * Add the `--install-dir=PATH` option to allow the user install into an arbitrary location that she specifies.
-* Add the `opm clean dist` command to allow cleaning up the leftovers of the `opm build` command.
 * Add `opm reinstall` command to reinstall an already installed module (at the same version).
 * Add `opm doctor` command to check if there is any inconsistency in the current opm package installation tree.
 * Add `opm files <package>` command to list all the files in the specified package.
