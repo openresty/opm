@@ -2200,6 +2200,12 @@ sub rebase_path ($$$) {
 }
 
 sub do_dist_clean () {
+    my $dist_file = "dist.ini";
+    my $data = read_ini($dist_file);
+    my $default_sec = $data->{default};
+    my $dist_name = $default_sec->{name};
+    my $version = $default_sec->{version};
+    my $root_dir = "$dist_name-$version";
     shell "rm -rf './$root_dir'";
     shell "rm './$root_dir.tar.gz'";
 }
