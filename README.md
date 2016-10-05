@@ -755,6 +755,8 @@ Perl's `cpan` and [Dist::Zilla](http://dzil.org/), RedHat's `yum`, NodeJS's `npm
 TODO
 ====
 
+* Add the `--install-dir=PATH` option to allow the user install into an arbitrary location that she specifies.
+* Add the `opm clean dist` command to allow cleaning up the leftovers of the `opm build` command.
 * Add `opm reinstall` command to reinstall an already installed module (at the same version).
 * Add `opm doctor` command to check if there is any inconsistency in the current opm package installation tree.
 * Add `opm files <package>` command to list all the files in the specified package.
