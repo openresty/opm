@@ -30,6 +30,7 @@ Table of Contents
     * [github_token](#github_token)
     * [upload_server](#upload_server)
     * [download_server](#download_server)
+* [Version Number Handling](#version-number-handling)
 * [Installation](#installation)
     * [For opm](#for-opm)
 * [Security Considerations](#security-considerations)
@@ -330,6 +331,9 @@ Example:
 ```ini
 version = 1.0.2
 ```
+
+See also the [Version Number Handling](#version-number-handling) section for more details on package
+version numbers.
 
 This key is optional.
 
@@ -683,6 +687,40 @@ The official OPM package server is `https://opm.openresty.org`. You could, howev
 any 3rd-party servers (then you are at your own risk).
 
 This key can have a different value than [upload_server](#upload_server).
+
+[Back to TOC](#table-of-contents)
+
+Version Number Handling
+=======================
+
+OPM requires all package version numbers to only consist of digits, dots, alphabetic letters, and underscores.
+Only the digits part are mandatory.
+
+OPM treats all version numbers as one or more integers separated by dots (`.`) or any other non-digit characters.
+Version number comparisons are performed by comparing each integer part in the order of their appearance.
+For example, the following version number comparisons hold true:
+
+```
+12 > 10
+1.0.2 > 1.0.3
+1.1.0 > 1.0.9
+0.10.0 > 0.9.2
+```
+
+There can be some surprises when your version numbers look like decimal numbers, as in
+
+```
+0.1 < 0.02
+```
+
+This is because `0.1` is parsed as the integer pair `{0, 1}`, while `0.02` is parsed as
+`{0, 2}`, so the latter is greater than the former.
+To avoid such pitfalls, always specify the decimal part of the equal length, that is,
+writing `0.1` as `0.10`, which is of the same length as `0.02`.
+
+OPM does not support special releases like "release candidates" (RC) or "developer releases" yet.
+But we may add such support in the future. For forward-compatibility, the package author
+should avoid version numbers with suffixes like `_2` or `rc1`.
 
 [Back to TOC](#table-of-contents)
 
