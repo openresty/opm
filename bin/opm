@@ -66,6 +66,7 @@ sub test_version_spec ($$$$$);
 sub check_utf8_field ($$$);
 sub check_user_file_path ($$$$);
 sub rebase_path ($$$);
+sub do_dist_clean ();
 
 GetOptions("h|help",          \(my $help),
            "cwd",             \(my $install_into_cwd),
@@ -125,6 +126,9 @@ for ($cmd) {
 
     } elsif ($_ eq 'search') {
         do_search(@ARGV);
+
+    } elsif ($_ eq 'dist-clean') {
+        do_dist_clean();
 
     } else {
         warn "ERROR: unknown command: $cmd\n\n";
@@ -2193,6 +2197,11 @@ sub rebase_path ($$$) {
     }
 
     return undef;
+}
+
+sub do_dist_clean () {
+    shell "rm -rf './$root_dir'";
+    shell "rm './$root_dir.tar.gz'";
 }
 
 sub err (@) {
