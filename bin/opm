@@ -66,7 +66,6 @@ sub test_version_spec ($$$$$);
 sub check_utf8_field ($$$);
 sub check_user_file_path ($$$$);
 sub rebase_path ($$$);
-sub do_dist_clean ();
 
 GetOptions("h|help",          \(my $help),
            "cwd",             \(my $install_into_cwd),
@@ -2218,7 +2217,7 @@ sub do_clean {
                 }
             }else{
                 if ($x =~ /^\Q$dist_name\E-[.\w]*\d[.\w]*\.tar\.gz$/){
-                    say 'match file to delete:',$x;
+                    shell "rm -rf $x";
                     say 'delete:',$x;
                 }
             }
