@@ -127,8 +127,8 @@ for ($cmd) {
     } elsif ($_ eq 'search') {
         do_search(@ARGV);
 
-    } elsif ($_ eq 'dist-clean') {
-        do_dist_clean();
+    } elsif ($_ eq 'clean') {
+        do_clean(@ARGV);
 
     } else {
         warn "ERROR: unknown command: $cmd\n\n";
@@ -2199,15 +2199,35 @@ sub rebase_path ($$$) {
     return undef;
 }
 
-sub do_dist_clean () {
-    my $dist_file = "dist.ini";
-    my $data = read_ini($dist_file);
-    my $default_sec = $data->{default};
-    my $dist_name = $default_sec->{name};
-    my $version = $default_sec->{version};
-    my $root_dir = "$dist_name-$version";
-    shell "rm -rf './$root_dir'";
-    shell "rm './$root_dir.tar.gz'";
+sub do_clean {
+    if (@_ == 0) {
+        err "no clean option specified.\n";
+    }
+    if ($_[0]  eq 'dist') {
+        my $dist_file = "dist.ini";
+        my $data = read_ini($dist_file);
+        my $default_sec = $data->{default};
+        my $dist_name = $default_sec->{name};
+        opendir(my $dh, './') || die "Can't opendir";
+        my @dots = readdir($dh);
+        foreach my $x (@dots) {
+            if(-d $x){
+                if ($x =~ /^\Q$dist_name\E-[.\w]*\d[.\w]*$/){
+                    shell "rm -rf $x";
+                    say 'delete:',$x;
+                }
+            }else{
+                if ($x =~ /^\Q$dist_name\E-[.\w]*\d[.\w]*\.tar\.gz$/){
+                    say 'match file to delete:',$x;
+                    say 'delete:',$x;
+                }
+            }
+        }
+        closedir $dh;
+    }else{
+        err "invalid clean option: ".$_[0];
+    }
+
 }
 
 sub err (@) {
