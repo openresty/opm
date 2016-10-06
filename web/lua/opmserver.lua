@@ -219,7 +219,7 @@ function _M.do_upload()
         query_db(sql)
 
     else
-        dd("token mached in the database.")
+        dd("token matched in the database.")
 
         user_id = assert(rows[1].user_id)
         scopes = assert(rows[1].scopes)
@@ -414,7 +414,7 @@ function _M.do_upload()
         local count_key = "count-" .. login
         -- ngx.log(ngx.WARN, "count key: ", count_key)
 
-        -- we add the github login name to the black list for 1 hour after 10
+        -- we add the github login name to the black list for 2 hours after 10
         -- uploads in 5 hours.
         count_bad_users(count_key, block_key, 10, 3600 * 5, 3600 * 2)
     end
@@ -705,7 +705,7 @@ do
     function query_github(ctx, path)
         local httpc = ctx.httpc
         local auth = ctx.auth
-        
+
         local client_addr = ctx.client_addr
         if not client_addr then
             client_addr = ngx_var.binary_remote_addr
@@ -1415,7 +1415,7 @@ end
 
 
 function count_bad_users(count_key, block_key, max_failed, count_time, ban_time)
-    local ok, err = shdict_bad_users:add(count_key, 0, ban_time * 2)
+    local ok, err = shdict_bad_users:add(count_key, 0, count_time)
     if not ok and err ~= "exists" then
         ngx.log(ngx.ERR, "failed to add key ", count_key, ": ",
                 err)
