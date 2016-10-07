@@ -2199,34 +2199,43 @@ sub rebase_path ($$$) {
 }
 
 sub do_clean {
+    my @valid_options = ('dist');
+    
     if (@_ == 0) {
         err "no clean option specified.\n";
     }
-    if ($_[0]  eq 'dist') {
+    
+    if ($_[0] eq 'dist') {
         my $dist_file = "dist.ini";
         my $data = read_ini($dist_file);
         my $default_sec = $data->{default};
         my $dist_name = $default_sec->{name};
-        opendir(my $dh, './') || die "Can't opendir";
-        my @dots = readdir($dh);
-        foreach my $x (@dots) {
-            if(-d $x){
-                if ($x =~ /^\Q$dist_name\E-[.\w]*\d[.\w]*$/){
-                    shell "rm -rf $x";
-                    say 'delete:',$x;
+
+        opendir(my $dh, './') 
+            or err "failed to open directory './'!\n";
+            
+        my @entities = readdir($dh);
+        for my $entity (@entities) {
+            
+            if (-d $entity) {
+                
+                if ($entity =~ /^\Q$dist_name\E-[.\w]*\d[.\w]*$/) {
+                    shell "rm -rf $entity";
+                    print "delete: $entity\n";
                 }
-            }else{
-                if ($x =~ /^\Q$dist_name\E-[.\w]*\d[.\w]*\.tar\.gz$/){
-                    shell "rm -rf $x";
-                    say 'delete:',$x;
+            } else {
+                
+                if ($entity =~ /^\Q$dist_name\E-[.\w]*\d[.\w]*\.tar\.gz$/) {
+                    unlink $entity;
+                    print "delete: $entity\n";
                 }
             }
         }
-        closedir $dh;
-    }else{
-        err "invalid clean option: ".$_[0];
+        closedir $dh
+            or err "failed to close directory $dh!\n";
+    } else {
+        err "unrecognized argument for clean: $_[0]. recognized clean arguments are: " . join(", ", @valid_options);
     }
-
 }
 
 sub err (@) {
