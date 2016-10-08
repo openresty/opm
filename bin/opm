@@ -2210,7 +2210,15 @@ sub do_clean {
         my $data = read_ini($dist_file);
         my $default_sec = $data->{default};
         my $dist_name = $default_sec->{name};
+        if (!$dist_name) {
+            err "$dist_file: key \"name\" not found in the default section.\n";
+        }
 
+        if (length $dist_name < 3
+            || $dist_name =~ /[^-\w]|^(?:nginx|luajit|resty|openresty|opm|restydoc.*|ngx_.*|.*-nginx-module)$/i)
+        {
+            err "$dist_file: bad dist name: $dist_name\n";
+        }
         opendir(my $dh, './') 
             or err "failed to open directory './'!\n";
             
@@ -2220,14 +2228,17 @@ sub do_clean {
             if (-d $entity) {
                 
                 if ($entity =~ /^\Q$dist_name\E-[.\w]*\d[.\w]*$/) {
-                    shell "rm -rf $entity";
-                    print "delete: $entity\n";
+                
+                    if (-e "$entity/dist.ini") {
+                        shell "rm -rf $entity";
+                        print "delete folder: $entity\n";
+                    }
                 }
             } else {
                 
                 if ($entity =~ /^\Q$dist_name\E-[.\w]*\d[.\w]*\.tar\.gz$/) {
                     unlink $entity;
-                    print "delete: $entity\n";
+                    print "delete file: $entity\n";
                 }
             }
         }
