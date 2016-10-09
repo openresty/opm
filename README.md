@@ -213,8 +213,9 @@ Commands:
     upload              Upload the package tarball to the server. This command always invokes
                         the build command automatically right before uploading.
 
-    clean AUGUMENT...     Do cleaning jobs. Currently valid option is "dist",  which cleans up 
+    clean AUGUMENT...   Do cleaning jobs. Currently valid agument is "dist",  which cleans up 
                         the leftovers of the opm build command.
+
 ```
 
 [Back to TOC](#table-of-contents)
@@ -799,6 +800,7 @@ TODO
 ====
 
 * Add the `--install-dir=PATH` option to allow the user install into an arbitrary location that she specifies.
+* Add the `opm clean dist` command to allow cleaning up the leftovers of the `opm build` command.
 * Add `opm reinstall` command to reinstall an already installed module (at the same version).
 * Add `opm doctor` command to check if there is any inconsistency in the current opm package installation tree.
 * Add `opm files <package>` command to list all the files in the specified package.
