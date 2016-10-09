@@ -109,6 +109,9 @@ opm build
 # personal access tokens. the first run of "opm upload" will create
 # a boilerplate ~/.opmrc file for you.
 opm upload
+
+# cleaning up the leftovers of the opm build command.
+opm clean dist
 ```
 
 Description
@@ -209,6 +212,9 @@ Commands:
 
     upload              Upload the package tarball to the server. This command always invokes
                         the build command automatically right before uploading.
+
+    clean AUGUMENT...   Do cleaning jobs. Currently valid agument is "dist",  which cleans up 
+                        the leftovers of the opm build command.
 
 ```
 
