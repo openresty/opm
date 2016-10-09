@@ -30,6 +30,7 @@ Table of Contents
     * [github_token](#github_token)
     * [upload_server](#upload_server)
     * [download_server](#download_server)
+* [Version Number Handling](#version-number-handling)
 * [Installation](#installation)
     * [For opm](#for-opm)
 * [Security Considerations](#security-considerations)
@@ -108,6 +109,9 @@ opm build
 # personal access tokens. the first run of "opm upload" will create
 # a boilerplate ~/.opmrc file for you.
 opm upload
+
+# cleaning up the leftovers of the opm build command.
+opm clean dist
 ```
 
 Description
@@ -154,10 +158,10 @@ NGINX modules via `opm` in the future. The OpenResty world consists of various
 different kinds of "modules" after all.
 
 We also have plans to allow the user to install LuaRocks packages via `opm`
-through the special user ID `luarocks`. Although it poses a risk of installing
-an OpenResty-agnostic Lua module which may block the NGINX worker processes
-horribly on network I/O. But as the developers of `opm`, we always like choices,
-especially choices given to our users.
+through the special user ID `luarocks`. It poses a risk of installing
+an OpenResty-agnostic Lua module which blocks the NGINX worker processes
+horribly on network I/O, nevertheless, as the developers of `opm`, we always like choices,
+especially those given to our users.
 
 [Back to TOC](#table-of-contents)
 
@@ -209,6 +213,8 @@ Commands:
     upload              Upload the package tarball to the server. This command always invokes
                         the build command automatically right before uploading.
 
+    clean AUGUMENT...     Do cleaning jobs. Currently valid option is "dist",  which cleans up 
+                        the leftovers of the opm build command.
 ```
 
 [Back to TOC](#table-of-contents)
@@ -330,6 +336,9 @@ Example:
 ```ini
 version = 1.0.2
 ```
+
+See also the [Version Number Handling](#version-number-handling) section for more details on package
+version numbers.
 
 This key is optional.
 
@@ -686,6 +695,40 @@ This key can have a different value than [upload_server](#upload_server).
 
 [Back to TOC](#table-of-contents)
 
+Version Number Handling
+=======================
+
+OPM requires all package version numbers to only consist of digits, dots, alphabetic letters, and underscores.
+Only the digits part are mandatory.
+
+OPM treats all version numbers as one or more integers separated by dots (`.`) or any other non-digit characters.
+Version number comparisons are performed by comparing each integer part in the order of their appearance.
+For example, the following version number comparisons hold true:
+
+```
+12 > 10
+1.0.2 > 1.0.3
+1.1.0 > 1.0.9
+0.10.0 > 0.9.2
+```
+
+There can be some surprises when your version numbers look like decimal numbers, as in
+
+```
+0.1 < 0.02
+```
+
+This is because `0.1` is parsed as the integer pair `{0, 1}`, while `0.02` is parsed as
+`{0, 2}`, so the latter is greater than the former.
+To avoid such pitfalls, always specify the decimal part of the equal length, that is,
+writing `0.1` as `0.10`, which is of the same length as `0.02`.
+
+OPM does not support special releases like "release candidates" (RC) or "developer releases" yet.
+But we may add such support in the future. For forward-compatibility, the package author
+should avoid version numbers with suffixes like `_2` or `rc1`.
+
+[Back to TOC](#table-of-contents)
+
 Installation
 ============
 
@@ -755,6 +798,7 @@ Perl's `cpan` and [Dist::Zilla](http://dzil.org/), RedHat's `yum`, NodeJS's `npm
 TODO
 ====
 
+* Add the `--install-dir=PATH` option to allow the user install into an arbitrary location that she specifies.
 * Add `opm reinstall` command to reinstall an already installed module (at the same version).
 * Add `opm doctor` command to check if there is any inconsistency in the current opm package installation tree.
 * Add `opm files <package>` command to list all the files in the specified package.
