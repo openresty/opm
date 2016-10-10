@@ -213,7 +213,7 @@ Commands:
     upload              Upload the package tarball to the server. This command always invokes
                         the build command automatically right before uploading.
 
-    clean OPTION...     Do cleaning jobs. Currently valid option is "dist",  which cleans up 
+    clean ARGUMENT...   Do cleaning jobs. Currently valid option is "dist",  which cleans up 
                         the leftovers of the opm build command.
 ```
 
