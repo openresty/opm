@@ -7,7 +7,11 @@
     <link rel="stylesheet" type="text/css" href="/css/main.css">
 </head>
 <body>
-<h1>OPM - OpenResty Package Manager</h1>
+<h1>
+    <span>
+    <a href="https://openresty.org"><img src="https://openresty.org/images/logo.png" width="64"></a>
+    </span>
+    OPM - OpenResty Package Manager</h1>
 <div>
     <h2>How to Use</h2>
     <p>Please read the <a href="https://github.com/openresty/opm#readme">opm documentation</a> for more details.</p>
