@@ -334,7 +334,7 @@ end
 i = i + 1 output[i] = '\n    </tbody>\n    </table>\n</div>\n'
 -- line 60 "index.tt2"
 i = i + 1 output[i] = context.process(context, 'footer.tt2')
-i = i + 1 output[i] = '\n</body>\n'
+i = i + 1 output[i] = '\n</body>\n<script>\nvar ga_func = function () {\n    (function(i,s,o,g,r,a,m){i[\'GoogleAnalyticsObject\']=r;i[r]=i[r]||function(){\n        (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),\n    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)\n    })(window,document,\'script\',\'https://www.google-analytics.com/analytics.js\',\'ga\');\n\n    ga(\'create\', \'UA-24724965-2\', \'auto\');\n    ga(\'send\', \'pageview\');\n}\nsetTimeout(ga_func, 0);\n</script>\n</html>\n'
 
     return output
 end
