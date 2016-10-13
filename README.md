@@ -702,7 +702,7 @@ For example, the following version number comparisons hold true:
 
 ```
 12 > 10
-1.0.2 > 1.0.3
+1.0.3 > 1.0.2
 1.1.0 > 1.0.9
 0.10.0 > 0.9.2
 ```
