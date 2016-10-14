@@ -364,6 +364,12 @@ function _M.do_upload()
         end
     end
 
+    -- get the repository's information
+    do
+      local repo_info = query_github_repository(ctx, pkg_name)
+      ctx.starred = repo_info.stargazers_count
+    end
+
     do
         req_read_body()
 
@@ -486,7 +492,7 @@ function db_update_user_info(ctx, user_info, user_id)
 end
 
 
-function query_github_user(ctx, token)
+function query_github_user(ctx)
     local path = "/user"
     local res = query_github(ctx, path)
 
@@ -522,6 +528,50 @@ function query_github_user(ctx, token)
         return log_and_out_err(ctx, 502,
                                "login name cannot found in the ",
                                "github /user API call: ", json)
+    end
+
+    return data, scopes
+end
+
+
+function query_github_repository(ctx, repository)
+    local account = ctx.account
+    local path = "/repos/" .. "account .. "/" .. repository"
+
+    local res = query_github(ctx, path)
+
+    local scopes = res.headers["X-OAuth-Scopes"]
+
+    if not scopes or not str_find(scopes, "user:email", nil, true) then
+        return log_and_out_err(ctx, 403,
+                               "personal access token lacking ",
+                               "the user:email scope: ", scopes)
+    end
+
+    if #scopes > #"read:org, user:email" then
+        return log_and_out_err(ctx, 403,
+                               "personal access token is too permissive; ",
+                               "only the scopes user:email and read:org ",
+                               "should be allowed.")
+    end
+
+    -- say(cjson.encode(res.headers))
+
+    local json = res.body
+
+    -- say("user json: ", json)
+
+    local data, err = decode_json(json)
+    if not data then
+        return log_and_out_err(ctx, 502, "failed to parse repos json: ",
+                               err, " (", json, ")")
+    end
+
+    local login = data.owner.login
+    if not login then
+        return log_and_out_err(ctx, 502,
+                               "login name cannot found in the ",
+                               "github /repos API call: ", json)
     end
 
     return data, scopes
@@ -675,7 +725,7 @@ do
     function query_github(ctx, path)
         local httpc = ctx.httpc
         local auth = ctx.auth
-        
+
         if not httpc then
             httpc = http.new()
             ctx.httpc = httpc
@@ -728,8 +778,9 @@ do
                 goto continue
             end
 
-            break
-
+            do
+              break
+            end
             ::continue::
         end
 
