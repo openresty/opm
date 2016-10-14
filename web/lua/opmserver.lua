@@ -19,6 +19,7 @@ local send_email = email.send_mail
 local re_find = ngx.re.find
 local re_match = ngx.re.match
 local str_find = string.find
+local str_format = string.format
 local ngx_var = ngx.var
 local say = ngx.say
 local req_read_body = ngx.req.read_body
@@ -1543,9 +1544,8 @@ do
 
         local i = 1
         local show_pattern = "%-40s  %6s  %s\n"
-        results[i] = string.format(show_pattern,
-                    "NAME",
-                    "STARS", "DESCRIPTION")
+        results[i] = str_format(show_pattern,
+                    "NAME", "STARS", "DESCRIPTION")
 
         for _, row in ipairs(rows) do
             local uploader = row.uploader_name
@@ -1562,9 +1562,8 @@ do
             end
 
             i = i + 1
-            results[i] = string.format(show_pattern,
-                    account .. "/" .. pkg,
-                    star, row.abstract)
+            results[i] = str_format(show_pattern,
+                    account .. "/" .. pkg, star, row.abstract)
         end
 
         ngx_print(results)
