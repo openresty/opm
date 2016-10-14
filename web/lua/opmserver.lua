@@ -568,6 +568,29 @@ end
 
 
 function query_github_repository(ctx, repository)
+    -- limit github accesses globally
+    local zone = "global_github_limit"
+    local lim, err = limit_req.new(zone, 1, 5)
+    if not lim then
+        return log_and_out_err(ctx, 500, "failed to new resty.limit.req: ", err)
+    end
+
+    local delay, err = lim:incoming("github", true)
+    if not delay then
+        if err == "rejected" then
+            return log_and_out_err(ctx, 503, "server too busy");
+        end
+        return log_and_out_err(ctx, 500, "failed to limit req: ", err)
+    end
+
+    if delay >= 0.001 then
+        local excess = err
+        ngx.log(ngx.WARN, "delaying github request, excess: ", excess,
+                " by zone ", zone)
+        ngx.sleep(delay)
+    end
+
+    -- "/repos/{owner}/{repo}"
     local account = ctx.account
     local path = "/repos/" .. account .. "/" .. repository
 
