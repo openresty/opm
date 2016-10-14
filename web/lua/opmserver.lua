@@ -365,9 +365,10 @@ function _M.do_upload()
     end
 
     -- get the repository's information
+    local stargazers_count
     do
       local repo_info = query_github_repository(ctx, pkg_name)
-      ctx.starred = repo_info.stargazers_count
+      stargazers_count = repo_info.stargazers_count
     end
 
     do
@@ -395,7 +396,7 @@ function _M.do_upload()
     -- insert the new uploaded task to the uplaods database.
 
     local sql1 = "insert into uploads (uploader, size, package, orig_checksum, "
-                  .. "version_v, version_s, client_addr"
+                  .. "version_v, version_s, client_addr, stargazers_count"
 
     local sql2 = ""
     if login ~= account then
@@ -408,6 +409,7 @@ function _M.do_upload()
                  .. ", " .. ver_v
                  .. ", " .. quote_sql_str(pkg_version)
                  .. ", " .. quote_sql_str(ngx_var.remote_addr)
+                 .. ", " .. quote_sql_str(stargazers_count)
 
     local sql4
     if login ~= account then
@@ -536,7 +538,7 @@ end
 
 function query_github_repository(ctx, repository)
     local account = ctx.account
-    local path = "/repos/" .. "account .. "/" .. repository"
+    local path = "/repos/" .. account .. "/" .. repository
 
     local res = query_github(ctx, path)
 
