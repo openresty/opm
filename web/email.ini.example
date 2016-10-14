@@ -1,0 +1,7 @@
+[default]
+
+# mailgun login name
+login=postmaster@opm.openresty.org
+
+# mailgun password
+password=foobarbazblah1234

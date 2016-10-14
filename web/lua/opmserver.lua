@@ -10,6 +10,10 @@ local cjson = require "cjson.safe"
 local ngx = require "ngx"
 local pgmoon = require "pgmoon"
 local tab_clear = require "table.clear"
+local limit_req = require "resty.limit.req"
+local templates = require "opmserver.templates"
+local email = require "opmserver.email"
+local send_email = email.send_mail
 
 
 local re_find = ngx.re.find
@@ -30,6 +34,7 @@ local assert = assert
 local sub = string.sub
 local ngx_null = ngx.null
 local tab_concat = table.concat
+local shdict_bad_users = ngx.shared.bad_users
 
 
 local incoming_directory = "/tmp/incoming"
@@ -67,6 +72,7 @@ local db_insert_org_info, db_insert_org_ownership
 local db_insert_user_verified_email
 local match_table = {}
 local ver2pg_array, tab2pg_array
+local count_bad_users
 
 
 -- an entry point
@@ -113,7 +119,6 @@ function _M.do_upload()
     -- extract the github personal access token from the request.
 
     local token = ngx_var.http_x_token
-    ctx.token = token
 
     if not re_find(token, [[^[a-f0-9]{40}$]], "ijo") then
         return log_and_out_err(ctx, 400, "bad github personal access token.")
@@ -214,7 +219,7 @@ function _M.do_upload()
         query_db(sql)
 
     else
-        dd("token mached in the database.")
+        dd("token matched in the database.")
 
         user_id = assert(rows[1].user_id)
         scopes = assert(rows[1].scopes)
@@ -291,62 +296,53 @@ function _M.do_upload()
         db_insert_user_verified_email(ctx, user_id, verified_email)
     end
 
-    local ver_v = ver2pg_array(pkg_version)
+    -- check if there is too many uploads.
 
-    local pkg_id
+    local block_key = "block-" .. login
+    -- ngx.log(ngx.WARN, "block key: ", block_key)
     do
-        local sql = "select id from packages where name = "
-                    .. quote_sql_str(pkg_name)
-
-        local rows = query_db(sql)
-
-        if #rows == 0 then
-            dd("no package registered in db yet.")
-
-            local sql = "insert into packages (name) values ("
-                        .. quote_sql_str(pkg_name) .. ") returning id"
-
-            local res = query_db(sql)
-            pkg_id = res[1].id
-
-        else
-            dd("package name found in db.")
-            pkg_id = assert(rows[1].id)
+        local val = shdict_bad_users:get(block_key)
+        if val then
+            return log_and_out_err(ctx, 403, "github ID ", login,
+                                   " blocked temporarily due to ",
+                                   "too many uploads. Please retry ",
+                                   "in a few hours.")
         end
     end
+
+    local quoted_pkg_name = quote_sql_str(pkg_name)
+    local ver_v = ver2pg_array(pkg_version)
 
     if new_org or (new_user and login == account) then
         dd("new account, no need to check duplicate uploads")
 
     else
-        dd("check if the package with the same verison under ",
+        dd("check if the package with the same version under ",
             "the same account is already uploaded.")
 
         local sql
         if login == account then
             -- user account
             assert(user_id)
-            assert(pkg_id)
 
             sql = "select version_s, created_at from uploads where uploader = "
                   .. user_id  -- user_id is from our own db
                   .. " and org_account is null and version_v = "
                   .. ver_v
-                  .. " and package = " .. pkg_id  -- pkg_id is from our own db
+                  .. " and package_name = " .. quoted_pkg_name
                   .. " and failed != true"
 
         else
             -- org account
             assert(user_id)
             assert(org_id)
-            assert(pkg_id)
 
             sql = "select version_s, created_at from uploads where uploader = "
                   .. user_id
                   .. " and org_account = "
                   .. org_id
                   .. " and version_v = " .. ver_v
-                  .. " and package = " .. pkg_id
+                  .. " and package_name = " .. quoted_pkg_name
                   .. " and failed != true"
         end
 
@@ -395,8 +391,9 @@ function _M.do_upload()
 
     -- insert the new uploaded task to the uplaods database.
 
-    local sql1 = "insert into uploads (uploader, size, package, orig_checksum, "
-                  .. "version_v, version_s, client_addr, stargazers_count"
+    local sql1 = "insert into uploads (uploader, size, package_name, "
+                 .. "orig_checksum, version_v, version_s, client_addr, "
+                 .. "stargazers_count"
 
     local sql2 = ""
     if login ~= account then
@@ -404,7 +401,7 @@ function _M.do_upload()
     end
 
     local sql3 = ") values (" .. user_id .. ", " .. size
-                 .. ", " .. pkg_id  -- from our own db
+                 .. ", " .. quoted_pkg_name  -- from our own db
                  .. ", " .. quote_sql_str(user_md5)
                  .. ", " .. ver_v
                  .. ", " .. quote_sql_str(pkg_version)
@@ -421,6 +418,15 @@ function _M.do_upload()
     local sql = sql1 .. sql2 .. sql3 .. sql4
     local res = query_db(sql)
     assert(res.affected_rows == 1)
+
+    do
+        local count_key = "count-" .. login
+        -- ngx.log(ngx.WARN, "count key: ", count_key)
+
+        -- we add the github login name to the black list for 2 hours after 10
+        -- uploads in 5 hours.
+        count_bad_users(count_key, block_key, 10, 3600 * 5, 3600 * 2)
+    end
 
     say("File ", fname, " has been successfully uploaded ",
         "and will be processed by the server shortly.\n",
@@ -494,7 +500,31 @@ function db_update_user_info(ctx, user_info, user_id)
 end
 
 
-function query_github_user(ctx)
+function query_github_user(ctx, token)
+    -- limit github accesses globally
+
+    local zone = "global_github_limit"
+    local lim, err = limit_req.new(zone, 1, 5)
+    if not lim then
+        return log_and_out_err(ctx, 500, "failed to new resty.limit.req: ", err)
+    end
+
+    local delay, err = lim:incoming("github", true)
+    if not delay then
+        if err == "rejected" then
+            return log_and_out_err(ctx, 503, "server too busy");
+        end
+        return log_and_out_err(ctx, 500, "failed to limit req: ", err)
+    end
+
+    if delay >= 0.001 then
+        local excess = err
+        ngx.log(ngx.WARN, "delaying github request, excess: ", excess,
+                " by zone ", zone)
+        ngx.sleep(delay)
+    end
+
+    -- query github
     local path = "/user"
     local res = query_github(ctx, path)
 
@@ -728,6 +758,22 @@ do
         local httpc = ctx.httpc
         local auth = ctx.auth
 
+        local client_addr = ctx.client_addr
+        if not client_addr then
+            client_addr = ngx_var.binary_remote_addr
+            ctx.client_addr = client_addr
+        end
+
+        local block_key = "block-" .. client_addr
+        do
+            local val = shdict_bad_users:get(block_key)
+            if val then
+                return log_and_out_err(ctx, 403, "client blocked temporarily ",
+                                       "due to too many failed attempt. ",
+                                       "Please retry in a few minutes.")
+            end
+        end
+
         if not httpc then
             httpc = http.new()
             ctx.httpc = httpc
@@ -790,7 +836,13 @@ do
             return ngx.exit(500)
         end
 
-        if res.status == 403 then
+        if res.status == 401 or res.status == 403 then
+            local count_key = "count-" .. client_addr
+
+            -- we add the client IP to the black list for 1 min after 5
+            -- failed attempts in the last 3 min.
+            count_bad_users(count_key, block_key, 5, 60 * 3, 60)
+
             ngx.status = 403
             out_err(res.body)
             return ngx.exit(403)
@@ -909,8 +961,7 @@ end
 
 
 function log_err(ctx, ...)
-    ngx.log(ngx.ERR, "[opm] [", ctx.account or "",
-            "] [", ctx.token or "", "] ", ...)
+    ngx.log(ngx.ERR, "[opm] [", ctx.account or "", "] ", ...)
 end
 
 
@@ -951,6 +1002,11 @@ do
         for i, item in ipairs(list) do
             bits[i] = quote_sql_str(item)
         end
+
+        if #bits == 0 then
+            return "'{}'"
+        end
+
         return "ARRAY[" .. tab_concat(bits, ", ") .. "]"
     end
 end
@@ -958,11 +1014,10 @@ end
 
 -- only for internal use in util/opm-pkg-indexer.pl
 function _M.do_incoming()
-    local sql = "select uploads.id as id, packages.name as name,"
+    local sql = "select uploads.id as id, uploads.package_name as name,"
                 .. " version_s, orig_checksum,"
                 .. " users.login as uploader, orgs.login as org_account"
                 .. " from uploads"
-                .. " left join packages on uploads.package = packages.id"
                 .. " left join users on uploads.uploader = users.id"
                 .. " left join orgs on uploads.org_account = orgs.id"
                 .. " where uploads.failed = false and uploads.indexed = false"
@@ -996,6 +1051,8 @@ do
         if not json then
             return log_and_out_err(ctx, 400, "no request body found")
         end
+
+        -- do return log_and_out_err(ctx, 400, json) end
 
         local data, err = decode_json(json)
         if not data then
@@ -1031,7 +1088,12 @@ do
                 return log_and_out_err(ctx, 400, "no repo_link defined")
             end
 
-            local is_orig = data.is_original and "true" or "false"
+            local is_orig = data.is_original
+            if not is_orig or is_orig == ngx_null or is_orig == 0 then
+                is_orig = "false"
+            else
+                is_orig = "true"
+            end
 
             local abstract = data.abstract
             if not abstract then
@@ -1068,6 +1130,8 @@ do
                 return log_and_out_err(ctx, 400, "no dep_versions defined")
             end
 
+            -- ngx.log(ngx.WARN, "abstract: ", abstract)
+
             sql = "update uploads set indexed = true"
                   .. ", updated_at = now(), authors = "
                   .. authors_v .. ", repo_link = "
@@ -1096,6 +1160,98 @@ do
         end
 
         say([[{"success":true}]])
+
+        if failed then
+            local sql = "select uploads.version_s as version"
+                        .. ", uploads.package_name as pkg"
+                        .. ", uploads.created_at as created_at"
+                        .. ", users.name as name, users.login as login"
+                        .. ", users.verified_email as email"
+                        .. ", orgs.login as org"
+                        .. " from uploads left join users"
+                        .. " on uploads.uploader = users.id"
+                        .. " left join orgs on"
+                        .. " uploads.org_account = orgs.id"
+                        .. " where uploads.id = " .. id
+
+            local rows = query_db(sql)
+            if #rows == 0 then
+                return log_and_out_err(ctx, 400, "bad id value: ", id)
+            end
+
+            local r = rows[1]
+
+            local email = r.email
+
+            assert(email)
+            assert(r.login)
+
+            local account
+            if r.org and r.org ~= "" and r.org ~= ngx_null then
+                account = r.org
+            else
+                account = r.login
+            end
+
+            ctx.account = account
+
+            local block_key = "block-" .. email
+            -- ngx.log(ngx.WARN, "block key: ", block_key)
+            do
+                local val = shdict_bad_users:get(block_key)
+                if val then
+                    return log_err(ctx, "recipient email address ", email,
+                                   " blocked temporarily due to ",
+                                   "too many emails.")
+                end
+            end
+
+            local name = r.name
+            if not name or name == "" or name == ngx_null then
+                name = r.login
+            end
+
+            local version = r.version
+            if not version or version == "" or version == ngx_null then
+                version = ""
+            end
+
+            local title = "FAILED: " .. account .. "/" .. r.pkg
+                          .. " " .. version
+
+            local content = data.reason
+            if not content or content == "" or content == ngx_null then
+                content = "unknown internal error"
+            end
+
+            local body = tab_concat{
+                "Dear ", name, ",\n\n",
+                "I am the indexer program on the OPM package server.\n\n",
+                "I just ran into a fatal error ",
+                "while processing your package ", account, "/",
+                r.pkg, " ", version, ", which was recently uploaded at ",
+                r.created_at, " as Task No. ", id,
+                ".\n\nThe details are as follows. ",
+                "If you still have no clues about the issue,",
+                " please concact us through <info@openresty.org>.\n\n",
+                "Please remember to provide this ",
+                "mail for the reference. Thank you!\n\n------\n",
+                content,
+                "\n------\n\nBest regards,\nOPM Indexer\n",
+            }
+
+            local ok, err = send_email(email, name, title, body)
+            if not ok then
+                log_err(ctx, "failed to send email to ", email, ": ", err)
+                return
+            end
+
+            local count_key = "count-" .. email
+
+            -- we add the email address to the black list for 12 hours after
+            -- sending 20 emails in the last 24 hours.
+            count_bad_users(count_key, block_key, 20, 3600 * 24, 3600 * 12)
+        end
     end
 end -- do
 
@@ -1159,7 +1315,7 @@ do
                                               pkg_ver, true --[[ latest ]])
         if not found_ver then
             ngx.status = 404
-            say(err)
+            say(err, ".")
             ngx.exit(404)
         end
 
@@ -1178,21 +1334,14 @@ do
 
 
     function pkg_fetch(ctx, account, pkg_name, op, pkg_ver, latest)
-        local sql = "select id from packages where name = "
-                    .. quote_sql_str(pkg_name)
-        local rows = query_db(sql)
-        if #rows == 0 then
-            return nil, nil,
-                   "the package name " .. pkg_name .. " never seen before"
-        end
-
-        local pkg_id = assert(rows[1].id)
+        local quoted_pkg_name = quote_sql_str(pkg_name)
         local quoted_account = quote_sql_str(account)
 
         local user_id, org_id
 
         local sql = "select id from users where login = " .. quoted_account
-        rows = query_db(sql)
+
+        local rows = query_db(sql)
 
         if #rows == 0 then
             sql = "select id from orgs where login = " .. quoted_account
@@ -1221,10 +1370,10 @@ do
 
         i = i + 1
         bits[i] = " from uploads where indexed = true"
-                  .. " and package = "
+                  .. " and package_name = "
 
         i = i + 1
-        bits[i] = pkg_id
+        bits[i] = quoted_pkg_name
 
         -- ngx.log(ngx.WARN, "op = ", op, ", pkg ver = ", pkg_ver)
 
@@ -1243,9 +1392,19 @@ do
                 i = i + 1
                 bits[i] = ver2pg_array(pkg_ver)
 
+            elseif op == "gt" then
+                i = i + 1
+                bits[i] = " and version_v > "
+
+                i = i + 1
+                bits[i] = ver2pg_array(pkg_ver)
+
             else
                 return nil, nil, "bad op argument value: " .. op
             end
+        else
+            op = nil
+            pkg_ver = nil
         end
 
         if user_id then
@@ -1275,8 +1434,25 @@ do
         rows = query_db(sql)
 
         if #rows == 0 then
-            return nil, nil, "package " .. pkg_name
-                             .. (op == 'ge' and '>=' or '=') .. pkg_ver
+
+            local spec
+
+            if op then
+                if op == 'ge' then
+                    spec = ' >= ' .. pkg_ver
+
+                elseif op == 'gt' then
+                    spec = ' > ' .. pkg_ver
+
+                else
+                    spec = ' = ' .. pkg_ver
+                end
+
+            else
+                spec = ""
+            end
+
+            return nil, nil, "package " .. pkg_name .. spec
                              .. " not found under account " .. account
         end
 
@@ -1288,6 +1464,244 @@ end  -- do
 
 function _M.get_final_directory()
     return final_directory
+end
+
+
+function count_bad_users(count_key, block_key, max_failed, count_time, ban_time)
+    local ok, err = shdict_bad_users:add(count_key, 0, count_time)
+    if not ok and err ~= "exists" then
+        ngx.log(ngx.ERR, "failed to add key ", count_key, ": ",
+                err)
+        return
+    end
+
+    local newval, err = shdict_bad_users:incr(count_key, 1)
+    if not newval then
+        ngx.log(ngx.ERR, "failed to incr ", count_key, ": ", err)
+        return
+    end
+
+    if newval and newval >= max_failed then
+        shdict_bad_users:delete(count_key)
+
+        local ok, err =
+            shdict_bad_users:add(block_key, 1, ban_time)
+
+        if not ok and err ~= "exists" then
+            ngx.log(ngx.ERR, "failed to add key ", block_key, ": ",
+                    err)
+            return
+        end
+    end
+end
+
+
+do
+    local unescape_uri = ngx.unescape_uri
+    local results = {}
+    local str_rep = string.rep
+    local ngx_print = ngx.print
+
+    function _M.do_pkg_search()
+        local query = unescape_uri(ngx_var.arg_q)
+
+        local ctx = {}
+
+        if not query or query == "" or #query > 128 then
+            return log_and_out_err(ctx, 400, "bad search query value.")
+        end
+
+        if re_find(query, [=[[^-. \w]]=], "jo") then
+            return log_and_out_err(ctx, 400, "bad search query value.")
+        end
+
+        local sql = "select abstract, package_name, orgs.login as org_name"
+                    .. ", users.login as uploader_name"
+                    .. " from (select last(abstract) as abstract"
+                    .. ", package_name, org_account, uploader"
+                    .. ", ts_rank_cd(last(ts_idx), last(q), 1) as rank"
+                    .. " from uploads, plainto_tsquery("
+                    .. quote_sql_str(query) .. ") q"
+                    .. " where indexed = true and ts_idx @@ q"
+                    .. " group by package_name, uploader, org_account"
+                    .. " order by rank desc limit 50) as tmp"
+                    .. " left join users on tmp.uploader = users.id"
+                    .. " left join orgs on tmp.org_account = orgs.id"
+
+        local rows = query_db(sql)
+        -- say(encode_json(rows))
+
+        if #rows == 0 then
+            ngx.status = 404
+            say("no search result found.")
+            return ngx.exit(404)
+        end
+
+        tab_clear(results)
+
+        local i = 0
+        for _, row in ipairs(rows) do
+            local uploader = row.uploader_name
+            local org = row.org_name
+            local pkg = row.package_name
+
+            local account
+            if org and org ~= ngx_null then
+                account = org
+
+            else
+                account = uploader
+            end
+
+            i = i + 1
+            results[i] = account
+
+            i = i + 1
+            results[i] = "/"
+
+            i = i + 1
+            results[i] = pkg
+
+            local len = #account + #pkg + 1
+
+            if len < 50 then
+                len = 50 - len
+            else
+                len = 4
+            end
+
+            i = i + 1
+            results[i] = str_rep(" ", len)
+
+            i = i + 1
+            results[i] = row.abstract
+
+            i = i + 1
+            results[i] = "\n"
+        end
+
+        ngx_print(results)
+    end
+
+
+    function _M.do_pkg_name_search()
+        local query = unescape_uri(ngx_var.arg_q)
+
+        local ctx = {}
+
+        if not query or query == "" or #query > 256 then
+            return log_and_out_err(ctx, 400, "bad search query value")
+        end
+
+        if not re_find(query, [[^[-\w]+$]], "jo") then
+            return log_and_out_err(ctx, 400, "bad search query value")
+        end
+
+        local sql = "select is_original, abstract, package_name"
+                    .. ", users.login as uploader_name"
+                    .. ", orgs.login as org_name"
+                    .. " from (select last(is_original) as is_original"
+                    .. ", last(abstract) as abstract"
+                    .. ", package_name, org_account, uploader"
+                    .. " from uploads"
+                    .. " where indexed = true and"
+                    .. " package_name = " .. quote_sql_str(query)
+                    .. " group by package_name, uploader, org_account) as tmp"
+                    .. " left join users on tmp.uploader = users.id"
+                    .. " left join orgs on tmp.org_account = orgs.id"
+                    .. " order by is_original desc, users.followers desc"
+                    .. " limit 50"
+
+        local rows = query_db(sql)
+        -- say(encode_json(rows))
+
+        if #rows == 0 then
+            ngx.status = 404
+            say("package not found.")
+            return ngx.exit(404)
+        end
+
+        tab_clear(results)
+
+        local i = 0
+        for _, row in ipairs(rows) do
+            local uploader = row.uploader_name
+            local org = row.org_name
+            local pkg = row.package_name
+
+            local account
+            if org and org ~= "" and org ~= ngx_null then
+                account = org
+
+            else
+                account = uploader
+            end
+
+            i = i + 1
+            results[i] = account
+
+            i = i + 1
+            results[i] = "/"
+
+            i = i + 1
+            results[i] = pkg
+
+            local len = #account + #pkg + 1
+
+            if len < 50 then
+                len = 50 - len
+            else
+                len = 4
+            end
+
+            i = i + 1
+            results[i] = str_rep(" ", len)
+
+            i = i + 1
+            results[i] = row.abstract
+
+            i = i + 1
+            results[i] = "\n"
+        end
+
+        ngx_print(results)
+
+    end
+end
+
+
+function _M.do_index_page()
+    local sql = [[select package_name, version_s, abstract, indexed]]
+                .. [[, failed, users.login as uploader_name]]
+                .. [[, orgs.login as org_name, repo_link]]
+                .. [[, uploads.created_at as created_at]]
+                .. [[ from uploads]]
+                .. [[ left join users on uploads.uploader = users.id]]
+                .. [[ left join orgs on uploads.org_account = orgs.id]]
+                .. [[ order by uploads.updated_at desc limit 100]]
+
+    local recent_uploads = query_db(sql)
+
+    sql = [[select count(*) as total,
+count(distinct uploader) as uploaders,
+count(distinct package_name) as pkg_count
+from uploads where indexed = true]]
+
+    local rows = query_db(sql)
+    assert(#rows == 1)
+    local row = rows[1]
+
+    local total_uploads = row.total
+    local uploader_count = row.uploaders
+    local pkg_count = row.pkg_count
+
+    local html = templates.process("index.tt2", {
+        recent_uploads = recent_uploads,
+        total_uploads = total_uploads,
+        uploader_count = uploader_count,
+        package_count = pkg_count,
+    })
+    say(html)
 end
 
 

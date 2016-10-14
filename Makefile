@@ -1,29 +1,47 @@
 pidfile = $(abspath web/logs/nginx.pid)
 webpath = $(abspath web/)
 openresty = openresty
-opm = $(abspath bin/opm)
-opm_pkg_indexer = $(abspath util/opm-pkg-indexer.pl)
+opm = $(abspath bin/opm) --cwd
+opm_pkg_indexer = $(abspath util/opm-pkg-indexer.pl) -i 1
+tt2_files := $(sort $(wildcard web/templates/*.tt2))
+templates_lua = web/lua/opmserver/templates.lua
+
+.DELETE_ON_ERRORS: $(templates_lua)
+
+.PHONY: all
+all: $(templates_lua)
+
+$(templates_lua): $(tt2_files)
+	mkdir -p web/lua/opmserver/
+	lemplate --compile $^ > $@
 
 .PHONY: test
-test: | initdb reload
+test: | initdb restart
 	#./bin/opm build
 	#-time ./bin/opm upload
-	rm -rf /tmp/final /tmp/failed /tmp/original
+	rm -rf /tmp/final /tmp/failed /tmp/original *.pid
 	mkdir -p /tmp/incoming /tmp/final /tmp/failed
 	cd ../lua-resty-lrucache && $(opm) build
 	cd ../lua-resty-lrucache && $(opm) upload
+	PATH=$$PWD/bin:$$PATH time $(opm_pkg_indexer)
+	$(opm) get openresty/lua-resty-lrucache
 	cd ../lua-resty-core && $(opm) build
 	cd ../lua-resty-core && $(opm) upload
 	PATH=$$PWD/bin:$$PATH time $(opm_pkg_indexer)
-	$(opm) get openresty/lua-resty-lrucache
+	$(opm) remove openresty/lua-resty-lrucache
+	$(opm) get openresty/lua-resty-core
+	curl -H 'Server: opm.openresyt.org' http://localhost:8080/
+
+.PHONY: restart
+	$(MAKE) stop start
 
 .PHONY: run
-run:
+run: all
 	mkdir -p $(webpath)/logs
 	cd web && $(openresty) -p $$PWD/
 
 .PHONY: reload
-reload:
+reload: all
 	$(openresty) -p $(webpath)/ -t
 	test -f $(pidfile)
 	rm -f $(webpath)/logs/error.log
