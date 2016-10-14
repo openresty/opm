@@ -1,0 +1,48 @@
+.indexed {
+    color: green;
+}
+
+.pending {
+    color: purple;
+}
+
+.failed {
+    color: red;
+}
+
+table.recent {
+    border: 1px solid black;
+}
+
+td {
+   padding: 10px;
+}
+
+.content-footer {
+  clear: both;
+}
+
+.content-footer:after {
+  content: '.';
+  display: block;
+  height: 0;
+  clear: both;
+  visibility: hidden;
+  font-size: 0;
+}
+
+div.footer {
+  font-size: 90%;
+  color: #888;
+  text-align: center;
+}
+
+div.content-footer {
+  margin-top: 3em;
+  margin-bottom: 2em;
+}
+
+hr.footer-sep {
+  margin-bottom: 20px;
+  margin-top: 10px;
+}

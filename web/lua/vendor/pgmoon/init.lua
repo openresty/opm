@@ -148,7 +148,11 @@ do
     },
     connect = function(self)
       self.sock = socket.new()
-      local ok, err = self.sock:connect(self.host, self.port)
+      local pool_name = self.user .. ":" .. self.database
+                        .. ":" .. self.host .. ":" .. self.port
+
+      local ok, err = self.sock:connect(self.host, self.port,
+                                        { pool = pool_name })
       if not (ok) then
         return nil, err
       end

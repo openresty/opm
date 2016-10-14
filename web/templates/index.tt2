@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>OPM - OpenResty Package Manager</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=2.0, user-scalable=yes">
+    <link rel="stylesheet" type="text/css" href="/css/main.css">
+</head>
+<body>
+<h1>
+    <span>
+    <a href="https://openresty.org"><img src="https://openresty.org/images/logo.png" width="64"></a>
+    </span>
+    OPM - OpenResty Package Manager</h1>
+<div>
+    <h2>How to Use</h2>
+    <p>Please read the <a href="https://github.com/openresty/opm#readme">opm documentation</a> for more details.</p>
+    <h2>Recent Uploads</h2>
+    <p>We already have [% total_uploads %] successful uploads
+       across [% package_count %] distinct package names from [% uploader_count %]
+       contributors. Come on, OPM authors!</p>
+    <table class="recent">
+    <tbody>
+    [%- FOREACH row IN recent_uploads %]
+    <tr>
+        [% uploader = row.uploader_name;
+           org = row.org_name;
+           account = uploader;
+           IF org;
+            account = org;
+           END %]
+        <td>
+        [%- IF row.indexed %]
+        <span class="indexed">Indexed</span>
+        [%- ELSIF row.failed %]
+        <span class="failed">Failed</span>
+        [%- ELSE %]
+        <span class="pending">Pending</span>
+        [%- END %]
+        </td>
+
+        <td>
+            <a href="[% row.repo_link %]">
+            [% account _ "/" _ row.package_name | html %]
+            </a>
+        </td>
+        <td>v[% row.version_s | html %]</td>
+        <td>[% row.abstract | html %]</td>
+        <td>
+            <a href="https://github.com/[% uploader | html %]/">
+                [% uploader | html %]
+            </a>
+        </td>
+        <td>[% row.created_at | html %]</td>
+    </tr>
+    [%- END %]
+    </tbody>
+    </table>
+</div>
+[% PROCESS "footer.tt2" %]
+</body>
+<script>
+var ga_func = function () {
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+        (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-24724965-2', 'auto');
+    ga('send', 'pageview');
+}
+setTimeout(ga_func, 0);
+</script>
+</html>

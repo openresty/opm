@@ -2,9 +2,11 @@
 
 # Copyright (C) Yichun Zhang (agentzh)
 
+use v5.10.1;
 use strict;
 use warnings;
 
+use Encode qw( decode );
 use FindBin ();
 use File::Find ();
 use File::Path qw( make_path );
@@ -14,6 +16,7 @@ use Cwd qw( realpath cwd );
 use Digest::MD5 ();
 use File::Copy qw( copy move );
 use File::Temp qw( tempfile );
+use Getopt::Long qw( GetOptions :config no_ignore_case require_order);
 #use Data::Dumper qw( Dumper );
 
 my $MAX_DEPS = 100;
@@ -41,16 +44,36 @@ my %Licenses = (
     proprietary => 'Proprietary',
 );
 
-sub err {
-    die "ERROR: ", @_;
-}
+my $SpecialDepPat = qr/^(?:openresty|luajit|ngx_(?:http_)?lua|nginx)$/;
 
-sub shell (@) {
-    #warn join(" ", map { /["?&;|\s]/ ? "'$_'" : $_ } @_), "\n";
+sub err (@);
+sub shell ($);
+sub find_sys_install_dir ();
+sub get_install_dir ();
+sub install_file ($$$);
+sub install_target ($$);
+sub upgrade_target ($$$$);
+sub remove_target ($$$);
+sub do_build ($);
+sub check_lock_file ();
+sub get_rc_file ();
+sub create_stub_rc_file ($);
+sub read_ini ($);
+sub init_installation_ctx ($);
+sub cmp_version ($$);
+sub search_pkg_name ($$);
+sub test_version_spec ($$$$$);
+sub check_utf8_field ($$$);
+sub check_user_file_path ($$$$);
+sub rebase_path ($$$);
 
-    if (system(@_) != 0) {
-        err "failed to run command\n";
-    }
+GetOptions("h|help",          \(my $help),
+           "cwd",             \(my $install_into_cwd),
+           "verbose",         \(my $verbose))
+   or usage(1);
+
+if ($help) {
+    usage(0);
 }
 
 my $cmd = shift or
@@ -61,14 +84,18 @@ if ($cmd eq '-v') {
     exit;
 }
 
+# explicitly clear the environments to avoid breaking luajit and resty.
+delete $ENV{LUA_PATH};
+delete $ENV{LUA_CPATH};
+
 for ($cmd) {
-    if ($_ eq 'get') {
+    if ($_ eq 'get' || $_ eq 'install') {
         check_lock_file();
 
         do_get(@ARGV);
 
     } elsif ($_ eq 'build') {
-        do_build();
+        do_build(0);
 
     } elsif ($_ eq 'server-build') {
         do_build(1);
@@ -76,16 +103,32 @@ for ($cmd) {
     } elsif ($_ eq 'upload') {
         check_lock_file();
 
-        do_build();
+        do_build(0);
         do_upload();
 
-    } elsif ($_ eq 'remove') {
+    } elsif ($_ eq 'remove' || $_ eq 'uninstall') {
         check_lock_file();
 
         do_remove(@ARGV);
 
+    } elsif ($_ eq 'list') {
+        do_list();
+
+    } elsif ($_ eq 'info') {
+        do_info(@ARGV);
+
+    } elsif ($_ eq 'upgrade') {
+        do_upgrade(@ARGV);
+
+    } elsif ($_ eq 'update') {
+        do_update();
+
+    } elsif ($_ eq 'search') {
+        do_search(@ARGV);
+
     } else {
-        err "unknown command: $cmd\n";
+        warn "ERROR: unknown command: $cmd\n\n";
+        usage(1);
     }
 }
 
@@ -103,75 +146,34 @@ sub do_get {
         err "no packages specified for fetch.\n";
     }
 
-    my $deps = parse_deps(\@_, "(command-line argument)");
+    my $deps = parse_deps(\@_, "(command-line argument)", 1);
 
     #warn Dumper($deps);
 
-    my ($rcfile, $data) = get_rc_file();
-
-    my $default_sec = delete $data->{default};
-
-    my $download_url = delete $default_sec->{download_server};
-    if (!$download_url) {
-        err "$rcfile: no download_server specified.\n";
-    }
-
-    if ($download_url !~ m{^https?://}) {
-        err "$rcfile: the value of download_server must be ",
-            "led by https:// or http://.\n";
-    }
-
-    my $cache_dir = File::Spec->catdir($ENV{HOME}, ".opm", "cache");
-    if (!-d $cache_dir) {
-        make_path($cache_dir);
-    }
-
-    $download_url =~ s{/+$}{};
-
-    my $header_file = File::Spec->catfile($cache_dir, "last-resp-header");
-
-    my $install_dir = find_sys_install_dir();
-    if (!defined $install_dir) {
-        err "cannot find OpenResty system installation directory.\n";
-    }
-
-    my $lualib_dir = File::Spec->catdir($install_dir, "lualib");
-    if (!-d $lualib_dir) {
-        make_path $lualib_dir;
-    }
-
-    my $pod_dir = File::Spec->catfile($install_dir, "pod");
-    if (!-d $pod_dir) {
-        make_path $pod_dir;
-    }
-
-    my $manifest_dir = File::Spec->catfile($install_dir, "manifest");
-    if (!-d $manifest_dir) {
-        make_path $manifest_dir;
-    }
-
-    my $ctx = {
-        download_url => $download_url,
-        cache_dir => $cache_dir,
-        header_file => $header_file,
-        install_dir => $install_dir,
-        lualib_dir => $lualib_dir,
-        pod_dir => $pod_dir,
-        manifest_dir => $manifest_dir,
-    };
+    my $ctx = init_installation_ctx(0);
 
     for my $dep (@$deps) {
         install_target($ctx, $dep);
     }
 }
 
-sub do_build {
+sub do_build ($) {
     my $server_build = shift;
 
     #if ($server_build) { while (1) {} }
 
     if (!defined $LuaJIT) {
         $LuaJIT = find_luajit();
+    }
+
+    my $account;
+    if (!$server_build) {
+        my ($rcfile, $data) = get_rc_file();
+        my $default_sec = $data->{default};
+        $account = delete $default_sec->{github_account};
+        if (!$account) {
+            err "$rcfile: no \"github_account\" specified.\n";
+        }
     }
 
     my $dist_file = "dist.ini";
@@ -187,15 +189,22 @@ sub do_build {
     }
 
     if (length $dist_name < 3
-        || $dist_name =~ /[^-\w]|^(?:nginx|luajit|resty|openresty|opm|restydoc.*)$/i)
+        || $dist_name =~ /[^-\w]|^(?:nginx|luajit|resty|openresty|opm|restydoc.*|ngx_.*|.*-nginx-module)$/i)
     {
         err "$dist_file: bad dist name: $dist_name\n";
+    }
+
+    if ($server_build) {
+        $account = delete $default_sec->{account}
+            or err "$dist_file: key \"account\" not found in the default section.\n";
     }
 
     my $author = delete $default_sec->{author};
     if (!$author) {
         err "$dist_file: key \"author\" not found in the default section.\n";
     }
+
+    check_utf8_field($dist_file, 'author', $author);
 
     my @authors = split /\s*,\s*/, $author;
     if (grep { !defined || !/[a-zA-Z]/ } @authors) {
@@ -239,20 +248,47 @@ sub do_build {
         err "$dist_file: key \"abstract\" not found in the default section.\n";
     }
 
+    check_utf8_field($dist_file, 'abstract', $dist_abstract);
+
     my $repo_link = delete $default_sec->{repo_link};
     if (!$repo_link) {
         err "$dist_file: key \"repo_link\" not found in the default section.\n";
     }
 
     if ($repo_link !~ m{^https?://}g) {
-        err "$dist_file: bad repo_link value ",
+        err "$dist_file: bad \"repo_link\" value ",
             "(must be a http:// or https:// link): $repo_link\n";
     }
 
-    if ($repo_link =~ m{github\.com/([-\w]+)}) {
-        $RepoLinkUser = $1;
+    if ($repo_link =~ /["'\s<>{}]/s) {
+        err "$dist_file: bad \"repo_link\" value: $repo_link\n";
+    }
+
+    if ($repo_link =~ m{\bgithub\.com\b}s) {
+        if ($repo_link !~ m{github\.com/([^/\s]+)/([^/\s]+)}) {
+            err "$dist_file: bad GitHub repo link: $repo_link\n";
+        }
+
+        my $user = $1;
+        my $proj = $2;
+        if ($proj ne $dist_name) {
+            err "$dist_file: project \"$proj\" in repo_link ",
+                "\"$repo_link\" does not match name \"$dist_name\".\n";
+        }
+
+        $RepoLinkUser = $user;
         $RepoLink = $repo_link;
     }
+
+    if ($repo_link =~ /[[:^ascii:]]/s) {
+        err "$dist_file: repo_link contains non-ASCII characters.\n";
+    }
+
+    if ($repo_link =~ /[[:^print:]]/s) {
+        err "$dist_file: repo_link contains non-printable characters.\n";
+    }
+
+=begin comment
 
     if (!$server_build) {
         my $out = `curl -sS -I $repo_link 2>&1`;
@@ -263,9 +299,13 @@ sub do_build {
                     "got HTTP status code $status.\n";
             }
         } else {
-            err "$dist_file: bad repo_likn $repo_link: $out\n";
+            err "$dist_file: bad repo_link $repo_link: $out\n";
         }
     }
+
+=end comment
+
+=cut
 
     my $version = delete $default_sec->{version};
 
@@ -288,9 +328,30 @@ sub do_build {
         if ($ndeps >= $MAX_DEPS) {
             err "$dist_file: requires: too many dependencies: $ndeps\n";
         }
+
+        if (!$server_build) {
+            my $ctx = init_installation_ctx(0);
+            $ctx->{level} = 1;
+
+            for my $dep (@$deps) {
+                install_target($ctx, $dep);
+            }
+        }
     }
 
-    # TODO check validity of the dependences.
+    my @exclude_files;
+    my $exclude = delete $default_sec->{exclude_files};
+    if ($exclude) {
+        my @pats = grep { $_ } split /\s*,\s*/, $exclude;
+        for my $pat (@pats) {
+            my @f = glob $pat;
+            if (!@f) {
+                err "$dist_file: exclude_files pattern \"$pat\" ",
+                    "does not match any files.\n";
+            }
+            push @exclude_files, @f;
+        }
+    }
 
     my $lib_dir = delete $default_sec->{lib_dir};
 
@@ -299,9 +360,7 @@ sub do_build {
     }
 
     if ($lib_dir) {
-        if (!-d $lib_dir) {
-            err "$dist_file: lib_dir \"$lib_dir\" directory found.\n";
-        }
+        check_user_file_path($dist_file, "lib_dir", $lib_dir, 'd');
 
     } else {
         $lib_dir = 'lib';
@@ -311,8 +370,8 @@ sub do_build {
     }
 
     my $user_main_module = delete $default_sec->{main_module};
-    if ($user_main_module && !-f $user_main_module) {
-        err "$dist_file: main_module file $user_main_module not found.\n";
+    if ($user_main_module) {
+        check_user_file_path($dist_file, "main_module", $user_main_module, 'f');
     }
 
     # process Lua module files.
@@ -320,9 +379,24 @@ sub do_build {
     my $main_module;
     my @lua_modules;
 
-    File::Find::find(sub {
+    File::Find::find({ no_chdir => 1, wanted => sub {
         return unless /\.lua$/;
-        (my $name = $File::Find::name) =~ s{^\Q$lib_dir\E/?}{};
+
+        my $full_name = $File::Find::name;
+
+        if ($full_name =~ /\b$dist_name-\d+/) {
+            return;
+        }
+
+        for my $file (@exclude_files) {
+            #warn "$full_name vs $file";
+            if (realpath($full_name) eq realpath($file)) {
+                warn "excluded file $full_name due to \"exclude_files\".\n";
+                return;
+            }
+        }
+
+        (my $name = $full_name) =~ s{^\Q$lib_dir\E/?}{};
         $name =~ s{/}{-}g;
         $name =~ s/\.(\w+)$//;
 
@@ -341,7 +415,7 @@ sub do_build {
 
         #warn $name;
         push @lua_modules, $module;
-    },  $lib_dir);
+    } },  $lib_dir);
 
     if (!@lua_modules) {
         err "No Lua modules found under direcgtory $lib_dir.\n";
@@ -368,8 +442,8 @@ sub do_build {
 
     my $code_ver;
     while (<$in>) {
-        if (/\b(?:_?VERSION|version)\s*=\s*(.+)/) {
-            (my $ver = $1) =~ s/['"]|\[=*\[|\]=*\]|\s+$//g;
+        if (/\b(?:_?VERSION|version)\s*=\s*(\S+)/) {
+            (my $ver = $1) =~ s/[;,'"{}()<>]|\[=*\[|\]=*\]|\s+$//g;
             if ($ver =~ /\d/) {
                 $code_ver = $ver;
                 last;
@@ -396,7 +470,7 @@ sub do_build {
     # check Lua source file syntax.
 
     for my $mod (@lua_modules) {
-        shell $LuaJIT, "-bl", $mod->{path}, "/dev/null";
+        shell "$LuaJIT -b '$mod->{path}' /dev/null";
     }
 
     # copy document files over.
@@ -424,7 +498,7 @@ sub do_build {
     }
 
     if (-d $root_dir) {
-        shell "rm -rf ./$root_dir";
+        shell "rm -rf './$root_dir'";
     }
 
     my $dst_lib_dir = File::Spec->catfile($root_dir, "lib");
@@ -432,15 +506,13 @@ sub do_build {
 
     if ($server_build) {
         my $restydoc_index = find_restydoc_index();
-        shell $restydoc_index, "--outdir", $root_dir, ".";
+        shell "$restydoc_index --outdir '$root_dir' .";
     }
 
     for my $mod (@lua_modules) {
-        my $name = $mod->{name};
-        $name =~ s{-}{/}g;
-        $name .= ".lua";
         my $src = $mod->{path};
-        my $dst = File::Spec->catfile($dst_lib_dir, $name);
+        my $dst = rebase_path($src, $lib_dir, $dst_lib_dir);
+
         (my $dir = $dst) =~ s{[^/]*$}{}g;
         if ($dir && !-d $dir) {
             make_path($dir);
@@ -456,9 +528,7 @@ sub do_build {
     my @module_docs;
 
     if ($doc_dir) {
-        if (!-d $doc_dir) {
-            err "$dist_file: doc_dir \"$doc_dir\" directory found.\n";
-        }
+        check_user_file_path($dist_file, "doc_dir", $doc_dir, 'd');
 
     } else {
         $doc_dir = 'lib';
@@ -467,10 +537,22 @@ sub do_build {
         }
     }
 
-    File::Find::find(sub {
+    File::Find::find({ no_chdir => 1, wanted => sub {
         return unless /\.(md|markdown|pod)$/;
-
         my $ext = $1;
+
+        my $full_name = $File::Find::name;
+
+        if ($full_name =~ /\b$dist_name-\d+/) {
+            return;
+        }
+
+        for my $file (@exclude_files) {
+            if (realpath($full_name) eq realpath($file)) {
+                warn "excluded file $full_name due to \"exclude_files\".\n";
+                return;
+            }
+        }
 
         (my $fname = $File::Find::name) =~ s{^\Q$lib_dir\E/?}{};
 
@@ -480,7 +562,7 @@ sub do_build {
         };
 
         #warn "$fname => $File::Find::name";
-    },  $doc_dir);
+    } },  $doc_dir);
 
     if (!$server_build) {
         my $dst_doc_dir = File::Spec->catfile($root_dir, "lib");
@@ -537,13 +619,16 @@ sub do_build {
         }
     }
 
-    $main_module =~ s/^\Q$lib_dir\E/lib/;
+    $main_module = rebase_path($main_module, $lib_dir, 'lib')
+        or err "$dist_file: cannot rewrite $main_module from $lib_dir to lib/";
 
     {
         my $outfile = "$root_dir/dist.ini";
         open my $out, ">$outfile"
             or err "failed to open $outfile for writing: $!\n";
+
         print $out <<_EOC_;
+account = $account
 name = $dist_name
 abstract = $dist_abstract
 author = $author
@@ -554,16 +639,24 @@ lib_dir = lib
 doc_dir = lib
 version = $version
 main_module = $main_module
-requires = $requires
 _EOC_
+
+        if ($requires) {
+            print $out "requires = $requires\n";
+        }
+
         close $out;
     }
 
     $TarBall = "$root_dir.tar.gz";
-    shell "tar", "-cvzf", $TarBall, $root_dir;
+    shell "tar -cvzf '$TarBall' '$root_dir'";
+
+    #if ($server_build) {
+    #err "something bad bad bad.\n";
+    #}
 }
 
-sub read_ini {
+sub read_ini ($) {
     my $infile = shift;
     open my $in, $infile
         or err "cannot open $infile for reading: $!\n";
@@ -634,7 +727,7 @@ sub parse_deps {
             if ($full_name =~ m{^ ([-\w]+) / ([-\w]+)  }x) {
                 ($account, $name) = ($1, $2);
 
-            } elsif ($full_name eq 'openresty' || $full_name eq 'luajit') {
+            } elsif ($full_name =~ $SpecialDepPat) {
                 $name = $full_name;
 
             } else {
@@ -647,7 +740,7 @@ sub parse_deps {
 
             push @parsed, [$account, $name];
 
-        } elsif ($item =~ m{^ ([-/\w]+) \s* (\S+) \s* (\S+) $}x) {
+        } elsif ($item =~ m{^ ([-/\w]+) \s* ([^\w\s]+) \s* (\w\S*) $}x) {
             my ($full_name, $op, $ver) = ($1, $2, $3);
 
             my ($account, $name);
@@ -655,14 +748,14 @@ sub parse_deps {
             if ($full_name =~ m{^ ([-\w]+) / ([-\w]+)  }x) {
                 ($account, $name) = ($1, $2);
 
-            } elsif ($full_name eq 'openresty' || $full_name eq 'luajit') {
+            } elsif ($full_name =~ $SpecialDepPat) {
                 $name = $full_name;
 
             } else {
                 err "$file: bad dependency name: $full_name\n";
             }
 
-            if ($op !~ /^ (?: >= | = ) $/x) {
+            if ($op !~ /^ (?: >= | = | > ) $/x) {
                 err "$file: bad dependency version comparison",
                     " operator in \"$item\": $op\n";
             }
@@ -762,11 +855,10 @@ sub do_upload {
     # upload the tar ball to the package server with the github access token.
 
     # TODO we should migrate from curl to a Lua script via the resty utility.
-    shell("curl", "-sS", "-i", "-A", "opm $Version ($Config::Config{archname}, perl $^V)",
-          "-H", "X-File: $TarBall", "-H", "X-File-Checksum: $md5sum",
-          "-H", "X-Account: $account", "-H", "X-Token: $token",
-          "-T", $TarBall,
-          "$upload_url/api/pkg/upload");
+    shell("curl " . ($verbose ? "-vv " : "") . "-sS -i -A '$UserAgent'"
+          . " -H 'X-File: $TarBall' -H 'X-File-Checksum: $md5sum'"
+          . " -H 'X-Account: $account' -H 'X-Token: $token'"
+          . " -T '$TarBall' '$upload_url/api/pkg/upload'");
 }
 
 sub find_luajit {
@@ -794,7 +886,7 @@ sub find_restydoc_index {
     return $file;
 }
 
-sub create_stub_rc_file {
+sub create_stub_rc_file ($) {
     my $rcfile = shift;
 
     # create a stub
@@ -821,7 +913,7 @@ _EOC_
         or err "$rcfile: failed to chmod to 0600: $!\n";
 }
 
-sub get_rc_file {
+sub get_rc_file () {
     my $home = $ENV{HOME};
     if (!$home) {
         err "environment HOME not defined.\n";
@@ -835,7 +927,7 @@ sub get_rc_file {
     return ($rcfile, read_ini($rcfile));
 }
 
-sub check_lock_file {
+sub check_lock_file () {
     # TODO when we support the --cwd option, we should use a lock file in the
     # current working directory instead, like ./resty_modules/lock
 
@@ -898,14 +990,175 @@ sub lock_hold_err {
         $pid ? "(PID $pid)" : "", ".\n";
 }
 
-sub install_target {
+sub install_target ($$) {
     my ($ctx, $target_spec) = @_;
 
     my ($account, $name, $op, $ver) = @$target_spec;
 
+    if (!$account) {
+        if ($ctx->{level} == 0) {
+            if ($name =~ $SpecialDepPat) {
+                err "you cannot install $name via opm.\n";
+            }
+
+            warn "ERROR: package name $name is not prefixed by ",
+                 "an account name.\nFinding candidates...\n";
+            search_pkg_name($ctx, $name);
+            return;
+        }
+
+        # nested, resolved as a true dependency.
+
+        if ($name =~ $SpecialDepPat) {
+            my $resty = $ctx->{resty};
+
+            if ($name eq 'luajit') {
+                my $out = `$resty -e 'print(jit.version)'`;
+                if ($? != 0 || !defined $out || $out !~ /^LuaJIT (\d+\.\d+\.\d+)/) {
+                    err "$name is required but is not available ",
+                        "according to $resty: ", $out // '', "\n";
+                }
+
+                my $luajit_ver = $1;
+                test_version_spec($name, $luajit_ver, $op, $ver, $resty);
+                return;
+            }
+
+            if ($name eq 'nginx') {
+                my $out = `$resty -e 'print(ngx.config.nginx_version)'`;
+                if ($? != 0 || !defined $out || $out !~ /^(\d+)(\d{3})(\d{3})$/) {
+                    err "$name is required but is not available ",
+                        "according to $resty: ", $out // '', "\n";
+                }
+
+                my $nginx_ver = join ".", $1 + 0, $2 + 0, $3 + 0;
+                #die "nginx version: $nginx_ver";
+                test_version_spec($name, $nginx_ver, $op, $ver, $resty);
+                return;
+            }
+
+            if ($name =~ /^ngx_(?:http_)?lua$/) {
+                my $out = `$resty -e 'print(ngx.config.ngx_lua_version)'`;
+                if ($? != 0 || !defined $out || $out !~ /^(\d{4,})$/) {
+                    err "$name is required but is not available ",
+                        "according to $resty: ", $out // '', "\n";
+                }
+
+                my $v = $1;
+                my $v1 = $v % 1000;
+                my $tmp = int($v / 1000);
+                my $v2 = $tmp % 1000;
+                $tmp = int($tmp / 1000);
+                my $v3 = $tmp % 1000;
+
+                my $ngx_lua_ver = "$v3.$v2.$v1";
+                #die "ngx_lua version: $ngx_lua_ver";
+                test_version_spec($name, $ngx_lua_ver, $op, $ver, $resty);
+                return;
+            }
+
+            if ($name eq 'openresty') {
+                my $out = `$resty -v 2>&1`;
+                if ($? != 0 || !defined $out || $out !~ m!\bopenresty/(\d+(?:\.\d+){3})!) {
+                    err "$name is required but is not available ",
+                        "according to $resty: ", $out // '', "\n";
+                }
+
+                my $openresty_ver = $1;
+                #die "openresty version: $openresty_ver";
+                test_version_spec($name, $openresty_ver, $op, $ver, $resty);
+                return;
+            }
+
+            die "unknown name: $name";
+
+        } else {
+            err "bad package name; you must specify an account prefix, ",
+                "like \"openresty/lua-resty-lrucache\".\n"
+        }
+    }
+
+    if ($ctx->{pkg_installing}{"$account/$name"}) {
+        err "cyclic dependency chain detected when installing the package $account/$name\n";
+    }
+
+    my $manifest_dir = $ctx->{manifest_dir} or die;
+    my $meta_file = File::Spec->catfile($manifest_dir, "$name.meta");
+    my $installed_ver;
+    my $remove_old;
+
+    {
+        if (-f $meta_file) {
+            my $data = read_ini($meta_file);
+            my $default_sec = $data->{default};
+
+            my $meta_account = $default_sec->{account}
+                or err "$meta_file: key \"account\" not found.\n";
+
+            my $v = $default_sec->{version}
+                or err "$meta_file: key \"version\" not found.\n";
+
+            if ($meta_account ne $account) {
+                err "failed to install $account/$name: ",
+                    "$meta_account/$name $v already installed.\n";
+            }
+
+            $installed_ver = $v;
+
+            my $skip_install;
+
+            if (!defined $ver || !defined $op) {
+                goto SKIP_INSTALL;
+            }
+
+            if ($op eq '>=') {
+                if (cmp_version($ver, $v) > 0) {
+                    #warn "upgrading $account/$name from $v ...\n";
+                    $remove_old = 1;
+
+                } else {
+                    # already installed and version is good
+                    goto SKIP_INSTALL;
+                }
+
+            } elsif ($op eq '>') {
+                if (cmp_version($ver, $v) >= 0) {
+                    #warn "upgrading $account/$name from $v ...\n";
+                    $remove_old = 1;
+
+                } else {
+                    # already installed and version is good
+                    goto SKIP_INSTALL;
+                }
+
+            } else {
+                # $op eq '='
+
+                if (cmp_version($ver, $v) == 0) {
+                    # already installed and version is good
+                    goto SKIP_INSTALL;
+                }
+
+                $remove_old = 1;
+            }
+        }
+    }
+
     my ($op_arg, $ver_arg);
     if (defined $op) {
-        $op_arg = ($op eq '>=') ? 'ge' : 'eq';
+        if ($op eq '>') {
+            $op_arg = 'gt';
+
+        } elsif ($op eq '>=') {
+            $op_arg = 'ge';
+
+        } elsif ($op eq '=') {
+            $op_arg = 'eq';
+
+        } else {
+            err "bad version comparison operator: $op.\n";
+        }
+
     } else {
         $op_arg = '';
     }
@@ -917,62 +1170,15 @@ sub install_target {
         $ver_arg = $ver;
     }
 
-    if (!$account) {
-        if ($name =~ /^(?:luajit|openresty)/i) {
-            err "you cannot install $name via opm.\n";
-
-        } else {
-            # TODO do package search remotely
-            err "bad package name; you must specify an account prefix, ",
-                "like \"openresty/lua-resty-lrucache\".\n"
-        }
-
-        next;
-    }
-
-    my $manifest_dir = $ctx->{manifest_dir} or die;
-    my $meta_file = File::Spec->catfile($manifest_dir, "$name.meta");
-    my $installed_ver;
-
-    {
-        if (-f $meta_file) {
-            my $data = read_ini($meta_file);
-            my $default_sec = $data->{default};
-            my $v = $default_sec->{version};
-            $installed_ver = $v;
-
-            my $skip_install;
-
-            if (!defined $ver || !defined $op) {
-                goto SKIP_INSTALL;
-            }
-
-            if ($op eq '>=') {
-                if (cmp_version($ver, $v) >= 0) {
-                    remove_target($ctx, $name);
-
-                } else {
-                    # already installed and version is good
-                    goto SKIP_INSTALL;
-                }
-
-            } else {
-                if (cmp_version($ver, $v) == 0) {
-                    # already installed and version is good
-                    goto SKIP_INSTALL;
-                }
-
-                remove_target($ctx, $name);
-            }
-        }
-    }
-
     my $download_url = $ctx->{download_url};
 
     my $url = qq{$download_url/api/pkg/fetch?}
               . qq{account=$account\&name=$name\&op=$op_arg\&version=$ver_arg};
 
-    warn "* Fetching $url\n";
+    if (!defined $op) {
+        $op = '';
+    }
+    warn "* Fetching $account/$name $op $ver_arg\n";
 
     my $cmd = qq/curl -sS -i -A '$UserAgent' '$url'/;
     my $out = `$cmd`;
@@ -1013,7 +1219,13 @@ sub install_target {
 
         $body =~ s/\n+//gs;
 
-        my $spec = $op && $ver ? " $op $ver" : "";
+        my $spec = ($op && $ver) ? " $op $ver" : "";
+
+        if ($ctx->{upgrade}) {
+            warn "Package $account/$name $ver is already the latest version.\n";
+            return;
+        }
+
         err "failed to find package $account/$name$spec: $body\n";
     }
 
@@ -1047,11 +1259,11 @@ sub install_target {
             }
 
             $dist_file = $1;
-            last;
+            next;
         }
     }
 
-    close $in;
+    close $in or die $!;
 
     if (!$target) {
         err "found no Location header in server response: $out";
@@ -1059,7 +1271,7 @@ sub install_target {
 
     if (!defined $expected_md5) {
         err "no X-File-Checksum response header received from server URL ",
-            "\"$url\".\n";
+            "\"$url\": $out\n";
     }
 
     $url = $download_url . $target;
@@ -1075,8 +1287,8 @@ sub install_target {
 
     my $header_file = $ctx->{header_file};
 
-    warn "* Downloading $url\n";
-    shell "curl", "-A", $UserAgent, "-o", $dist_file_path, "-D", $header_file, $url;
+    warn "  Downloading $url\n";
+    shell "curl -A '$UserAgent' -o '$dist_file_path' -D '$header_file' '$url'";
 
     open $in, $header_file or
         err "failed to open $header_file for reading: $!\n";
@@ -1087,6 +1299,9 @@ sub install_target {
     }
 
     $status = $1;
+
+    close $in or err "failed to close file $header_file: $!";
+
     #warn $status;
     if ($status ne '200') {
         err "failed to fetch $dist_file: server returns bad status code $status.\n";
@@ -1120,10 +1335,10 @@ sub install_target {
     (my $dist_dir = $dist_file) =~ s/\.tar\.gz$//;
 
     if (-d $dist_dir) {
-        shell "rm", "-rf", $dist_dir;
+        shell "rm -rf '$dist_dir'";
     }
 
-    shell "tar", "-xzf", $dist_file;
+    shell "tar -xzf '$dist_file'";
 
     if (!-d $dist_dir) {
         err "the unpacked directory $dist_dir not found under $cache_subdir.\n";
@@ -1157,7 +1372,19 @@ sub install_target {
 
     my $requires = $default_sec->{requires};
     if ($requires) {
-        # TODO handle dependencies here...
+        my $deps = parse_deps($requires, $ini_file);
+
+        $ctx->{pkg_installing}{"$account/$name"} = 1;
+
+        $ctx->{level}++;
+
+        for my $dep (@$deps) {
+            install_target($ctx, $dep);
+        }
+
+        $ctx->{level}--;
+
+        delete $ctx->{pkg_installing}{"$account/$name"};
     }
 
     my @lua_files;
@@ -1170,6 +1397,24 @@ sub install_target {
 
     if (!@lua_files) {
         err "no library files found in $dist_dir/.\n";
+    }
+
+    if ($remove_old) {
+        remove_target($ctx, $name, undef);
+    }
+
+    my $installed_files = $ctx->{installed_files};
+
+    for my $spec (@lua_files) {
+        my ($src, $dst) = @$spec;
+
+        my $file = File::Spec->catfile("lualib", $dst);
+        my $pkg = $installed_files->{$file};
+        if ($pkg) {
+            err "file $dst in package $account/$name already appears ",
+                "in the previously installed package $pkg.\n";
+        }
+        $installed_files->{$file} = "$name";
     }
 
     my @pod_files;
@@ -1209,7 +1454,8 @@ sub install_target {
 
         for my $spec (@lua_files) {
             my ($src, $dst) = @$spec;
-            print $out File::Spec->catfile("lualib", $dst), "\n";
+            my $file = File::Spec->catfile("lualib", $dst);
+            print $out $file, "\n";
         }
 
         for my $spec (@pod_files) {
@@ -1246,10 +1492,11 @@ sub install_target {
 
     }
 
+    warn "Package $account/$name $version installed successfully ",
+         "under $install_dir/ .\n";
+
     chdir $cwd
         or err "cannot chdir to $cwd: $!\n";
-
-    close $in;
 
     return;
 
@@ -1259,13 +1506,31 @@ SKIP_INSTALL:
     return;
 }
 
-sub find_sys_install_dir {
-    return realpath(
-                File::Spec->catdir(
-                    $FindBin::RealBin, "..", "site"));
+sub get_install_dir () {
+    if (defined $install_into_cwd) {
+        my $dir = File::Spec->catdir(cwd(), "resty_modules");
+        if (!-d $dir) {
+            make_path $dir;
+        }
+        return $dir;
+    }
+
+    return find_sys_install_dir();
 }
 
-sub install_file {
+sub find_sys_install_dir () {
+    my $path = File::Spec->catdir($FindBin::RealBin, "..", "site");
+    my $dir = realpath($path);
+
+    if (!defined $dir || !-d $dir) {
+        err "cannot find OpenResty system installation directory ",
+            "($path not found).\n";
+    }
+
+    return $dir;
+}
+
+sub install_file ($$$) {
     my ($src, $dst, $install_dir) = @_;
 
     my $dst_path = File::Spec->catfile($install_dir, $dst);
@@ -1292,7 +1557,7 @@ sub install_file {
     copy($src, $dst_path) or err "failed to copy $src to $dst_path: $!\n";
 }
 
-sub cmp_version {
+sub cmp_version ($$) {
     my ($a, $b) = @_;
 
     my @a = split /\D+/, $a;
@@ -1324,16 +1589,47 @@ sub cmp_version {
     return 0;
 }
 
-sub remove_target {
-    my ($ctx, $name) = @_;
+sub remove_target ($$$) {
+    my ($ctx, $name, $account) = @_;
 
     my $install_dir = $ctx->{install_dir};
     if (!defined $install_dir) {
         err "cannot find OpenResty system installation directory.\n";
     }
 
+    #warn $install_dir;
+
     my $cwd = cwd;
     chdir $install_dir or err "cannot chdir to $install_dir: $!\n";
+
+    my $manifest_dir = "manifest";
+    if (!-d $manifest_dir) {
+        err "package $account/$name not installed yet.\n";
+    }
+
+    my $meta_file = File::Spec->catfile($manifest_dir, "$name.meta");
+
+    #warn $meta_file;
+
+    my $version;
+    if (-f $meta_file) {
+        my $data = read_ini($meta_file);
+
+        my $default_sec = $data->{default};
+        my $meta_account = $default_sec->{account};
+
+        if ($account) {
+            if ($account ne $meta_account) {
+                err "package $account/$name not installed yet ",
+                    "(but $meta_account/$name already installed).\n";
+            }
+
+        } else {
+            $account = $meta_account;
+        }
+
+        $version = $default_sec->{version};
+    }
 
     my $restydoc_index = "resty.index";
     if (-f $restydoc_index) {
@@ -1375,29 +1671,31 @@ sub remove_target {
         }
     }
 
-    my $manifest_dir = "manifest";
-    if (!-d $manifest_dir) {
-        make_path $manifest_dir;
-    }
-
     my $list_file = File::Spec->catfile($manifest_dir, "$name.list");
-    my $meta_file = File::Spec->catfile($manifest_dir, "$name.meta");
     my ($found_list, $found_meta);
 
     my %dirs;
 
     if (-f $list_file) {
         $found_list = 1;
+
         open my $in, $list_file
             or err "failed to open $list_file for reading: $!\n";
+
+        my $installed_files = $ctx->{installed_files} or die;
+
         while (<$in>) {
             chomp;
+
             if (m{(.+)/}) {
                 my $dir = $1;
                 if ($dir =~ m{\S/\S}) {
                     $dirs{$dir} = 1;
                 }
             }
+
+            delete $installed_files->{$_};
+
             unlink or warn "WARNING: failed to remove file $_: $!\n";
         }
         close $in;
@@ -1427,6 +1725,8 @@ sub remove_target {
         err "package $name not installed yet.\n";
     }
 
+    warn "Package $account/$name $version removed successfully.\n";
+
     chdir $cwd or err "cannot chdir to $install_dir";
 }
 
@@ -1437,26 +1737,534 @@ sub do_remove {
 
     my $deps = parse_deps(\@_, "(command-line argument)", 1);
 
-    my $install_dir = find_sys_install_dir();
-    if (!defined $install_dir) {
-        err "cannot find OpenResty system installation directory.\n";
-    }
-
-    my $ctx = {
-        install_dir => $install_dir,
-    };
+    my $ctx = init_installation_ctx(0);
 
     for my $dep (@$deps) {
         my ($account, $name, $op, $ver) = @$dep;
-
-        if ($account) {
-            warn "ignoring account name $account ...\n";
-        }
 
         if ($op && $ver) {
             warn "ignoring version constraint $op $ver ...\n";
         }
 
-        remove_target($ctx, $name);
+        remove_target($ctx, $name, $account);
     }
+}
+
+sub do_list {
+    my $install_dir = get_install_dir();
+
+    my $manifest_dir = File::Spec->catfile($install_dir, "manifest");
+    if (!-d $manifest_dir) {
+        return;
+    }
+
+    opendir my $dh, $manifest_dir
+        or err "failed to open directory $manifest_dir: $!\n";
+
+    while (my $entry = readdir $dh) {
+        #warn $entry;
+        if ($entry =~ /(.+)\.meta$/) {
+            my $pkg = $1;
+
+            my $file = File::Spec->catfile($manifest_dir, $entry);
+
+            my $data = read_ini($file);
+            my $default_sec = $data->{default};
+
+            my $version = $default_sec->{version}
+                or err "$file: no version found for package $pkg.\n";
+
+            my $account = $default_sec->{account}
+                or err "$file: no account found for package $pkg.\n";
+
+            printf "%-60s %s\n", "$account/$pkg", $version;
+        }
+    }
+
+    closedir $dh
+        or err "failed to close directory $manifest_dir: $!\n";
+}
+
+sub do_info {
+    if (@_ == 0) {
+        err "no packages specified for info.\n";
+    }
+
+    my $install_dir = get_install_dir();
+
+    my $manifest_dir = File::Spec->catfile($install_dir, "manifest");
+    if (!-d $manifest_dir) {
+        err "no packages installed yet.\n";
+    }
+
+    local $_;
+    for (@_) {
+        my ($account, $name);
+
+        if (m{^ ([-\w]+) / ([-\w]+) $}x) {
+            ($account, $name) = ($1, $2);
+
+        } elsif (m{^ ([-\w]+) }x) {
+            $name = $1;
+
+        } else {
+            err "bad package name: $_\n";
+        }
+
+        my $meta_file = File::Spec->catfile($manifest_dir, "$name.meta");
+        if (!-f $meta_file) {
+            err "package $name not installed yet.\n";
+        }
+
+        my $data = read_ini $meta_file;
+        my $default_sec = $data->{default};
+
+        my $meta_account = $default_sec->{account}
+            or err "$meta_file: key \"account\" not found.\n";
+
+        if ($account && $meta_account ne $account) {
+            err "package $account/$name not installed ",
+                "(but $meta_account/$name installed).\n";
+        }
+
+        my $license = $default_sec->{license}
+            or err "$meta_file: key \"license\" not found.\n";
+
+        my @licenses = split /\s*,\s*/, $license;
+        my $license_lines = '';
+        my $i = 0;
+        for my $l (@licenses) {
+            my $desc = $Licenses{$l} || 'Unknown';
+            if ($i == 0) {
+                $license_lines .= $desc;
+
+            } else {
+                $license_lines .= ",\n                 : $desc";
+            }
+
+        } continue {
+            $i++;
+        }
+
+        print <<_EOC_;
+Name             : $name
+Version          : $default_sec->{version}
+Abstract         : $default_sec->{abstract}
+Author           : $default_sec->{author}
+Account          : $meta_account
+Code Repo        : $default_sec->{repo_link}
+License          : $license_lines
+Original Work    : $default_sec->{is_original}
+_EOC_
+
+        my $requires = $default_sec->{requires};
+        if ($requires) {
+            print <<_EOC_;
+Requires         : $requires
+_EOC_
+        }
+    }
+}
+
+sub do_upgrade {
+    if (@_ == 0) {
+        err "no packages specified for upgrade.\n";
+    }
+
+    my $ctx = init_installation_ctx(1);
+    my $manifest_dir = $ctx->{manifest_dir};
+
+    local $_;
+    for (@_) {
+        my ($account, $name);
+
+        if (m{^ ([-\w]+) / ([-\w]+) $}x) {
+            ($account, $name) = ($1, $2);
+
+        } elsif (m{^ ([-\w]+) }x) {
+            $name = $1;
+
+        } else {
+            err "bad package name: $_\n";
+        }
+
+        my $meta_file = File::Spec->catfile($manifest_dir, "$name.meta");
+        upgrade_target($ctx, $account, $name, $meta_file);
+    }
+}
+
+sub init_installation_ctx ($) {
+    my $upgrade = shift;
+
+    my ($rcfile, $data) = get_rc_file();
+
+    my $default_sec = delete $data->{default};
+
+    my $download_url = delete $default_sec->{download_server};
+    if (!$download_url) {
+        err "$rcfile: no download_server specified.\n";
+    }
+
+    if ($download_url !~ m{^https?://}) {
+        err "$rcfile: the value of download_server must be ",
+            "led by https:// or http://.\n";
+    }
+
+    my $cache_dir = File::Spec->catdir($ENV{HOME}, ".opm", "cache");
+    if (!-d $cache_dir) {
+        make_path($cache_dir);
+    }
+
+    $download_url =~ s{/+$}{};
+
+    my $header_file = File::Spec->catfile($cache_dir, "last-resp-header");
+
+    my $install_dir = get_install_dir();
+
+    my $lualib_dir = File::Spec->catdir($install_dir, "lualib");
+    if (!-d $lualib_dir) {
+        make_path $lualib_dir;
+    }
+
+    my $pod_dir = File::Spec->catfile($install_dir, "pod");
+    if (!-d $pod_dir) {
+        make_path $pod_dir;
+    }
+
+    my $manifest_dir = File::Spec->catfile($install_dir, "manifest");
+    if (!-d $manifest_dir) {
+        make_path $manifest_dir;
+    }
+
+    my $resty = File::Spec->catfile($install_dir, "bin", "resty");
+    if (!-f $resty || !-x $resty) {
+        $resty = "resty";  # relying on PATH now
+    }
+
+    opendir my $dh, $manifest_dir
+        or err "failed to open directory $manifest_dir: $!\n";
+
+    my %installed_files;
+    while (my $entry = readdir $dh) {
+        next unless $entry =~ /(.+)\.list$/;
+
+        my $pkg_name = $1;
+        my $file = File::Spec->catfile($manifest_dir, $entry);
+
+        open my $in, $file
+            or die "cannot open $file for reading: $!\n";
+
+        while (<$in>) {
+            next unless m{^lualib/};
+            chomp;
+            #warn "$_ => $pkg_name";
+            $installed_files{$_} = $pkg_name;
+        }
+        close $in;
+    }
+
+    closedir $dh
+        or err "failed to close directory $manifest_dir: $!\n";
+
+    my $ctx = {
+        download_url => $download_url,
+        cache_dir => $cache_dir,
+        header_file => $header_file,
+        install_dir => $install_dir,
+        lualib_dir => $lualib_dir,
+        pod_dir => $pod_dir,
+        manifest_dir => $manifest_dir,
+        pkg_installing => {},  # for checking cyclic dependency chain
+        installed_files => \%installed_files,  # for clashing files from different pkgs
+        level => 0,
+        upgrade => $upgrade,
+        resty => $resty,
+    };
+
+    return $ctx;
+}
+
+sub upgrade_target ($$$$) {
+    my ($ctx, $account, $name, $meta_file) = @_;
+
+    my $data = read_ini $meta_file;
+    my $default_sec = $data->{default};
+
+    my $ver = $default_sec->{version}
+        or err "$meta_file: key \"version\" not found.\n";
+
+    my $meta_account = $default_sec->{account}
+        or err "$meta_file: key \"account\" not found.\n";
+
+    if ($account && $meta_account ne $account) {
+        err "package $account/$name not installed ",
+            "(but $meta_account/$name installed).\n";
+    }
+
+    my $target = [$meta_account, $name, ">", $ver];
+
+    install_target($ctx, $target);
+}
+
+sub do_update {
+    my $install_dir = get_install_dir();
+
+    my $manifest_dir = File::Spec->catfile($install_dir, "manifest");
+    if (!-d $manifest_dir) {
+        return;
+    }
+
+    my $ctx = init_installation_ctx(1);
+
+    opendir my $dh, $manifest_dir
+        or err "failed to open directory $manifest_dir: $!\n";
+
+    while (my $entry = readdir $dh) {
+        #warn $entry;
+        if ($entry =~ /(.+)\.meta$/) {
+            my $name = $1;
+
+            my $file = File::Spec->catfile($manifest_dir, $entry);
+
+            my $data = read_ini($file);
+            my $default_sec = $data->{default};
+
+            my $account = $default_sec->{account}
+                or err "$file: no account found for package $name.\n";
+
+            upgrade_target($ctx, $account, $name, $file);
+        }
+    }
+
+    closedir $dh
+        or err "failed to close directory $manifest_dir: $!\n";
+}
+
+sub do_search {
+    if (@_ == 0) {
+        err "no packages specified for search.\n";
+    }
+
+    my $query = join " ", @_;
+
+    if (!$query) {
+        err "no query specified.\n";
+    }
+
+    $query =~ s/\s+/ /g;
+
+    if ($query =~ /[^- .\w]/) {
+        err "bad query: $query\n";
+    }
+
+    if (length $query > 128) {
+        err "query too long: ", length $query, " bytes.\n";
+    }
+
+    my ($rcfile, $data) = get_rc_file();
+
+    my $default_sec = delete $data->{default};
+
+    my $download_url = delete $default_sec->{download_server};
+    if (!$download_url) {
+        err "$rcfile: no download_server specified.\n";
+    }
+
+    if ($download_url !~ m{^https?://}) {
+        err "$rcfile: the value of download_server must be ",
+            "led by https:// or http://.\n";
+    }
+
+    (my $escaped_query = $query) =~ s/ /%20/g;
+
+    my $url = "$download_url/api/pkg/search?q=$escaped_query";
+    my $out = `curl -i -sS '$url' 2>&1`;
+    my $status;
+    if ($? == 0 && $out =~ m{^ HTTP/1\.\d \s+ (\d+) \b}ix) {
+        $status = $1;
+
+    } else {
+        err "failed to search: server error.\n";
+    }
+
+    #warn $out;
+
+    $out =~ s/.*?\r?\n\r?\n//s;
+
+    if ($status != 200) {
+        err "failed to search on server: status $status: $out\n";
+    }
+
+    # TODO highlight hits
+    print $out;
+}
+
+sub search_pkg_name ($$) {
+    my ($ctx, $name) = @_;
+
+    my $download_url = $ctx->{download_url} or die;
+
+    my $url = "$download_url/api/pkg/search/name?q=$name";
+    my $out = `curl -i -sS '$url' 2>&1`;
+    my $status;
+    if ($? == 0 && $out =~ m{^ HTTP/1\.\d \s+ (\d+) \b}ix) {
+        $status = $1;
+
+    } else {
+        err "failed to find package: server error: $out\n";
+    }
+
+    $out =~ s/.*?\r?\n\r?\n//s;
+
+    if ($status != 200) {
+        err "failed to find package $name on server: $out";
+    }
+
+    print $out;
+}
+
+sub test_version_spec ($$$$$) {
+    my ($name, $actual_ver, $op, $ver, $source) = @_;
+
+    return if !defined $op || !defined $ver;
+
+    my $rc = cmp_version($actual_ver, $ver);
+    #warn "cmp res: $rc";
+
+    if ($op eq '>=') {
+        return if $rc >= 0;
+
+    } elsif ($op eq '=') {
+        return if $rc == 0;
+
+    } elsif ($op eq '>') {
+        return if $rc > 0;
+    }
+
+    err "$name $op $ver required but found $name ",
+        "$actual_ver according to $source.\n";
+}
+
+sub check_utf8_field ($$$) {
+    my ($file, $key, $str) = @_;
+    eval {
+        decode( 'UTF-8', $str, Encode::FB_CROAK )
+    };
+    if ($@) {
+        (my $err = $@) =~ s/ at \S.+? line \d+\.\n?$//;
+        err "$file key \"$key\" contains invalid UTF-8 sequences: $err.\n";
+    }
+}
+
+sub check_user_file_path ($$$$) {
+    my ($file, $key, $val, $type) = @_;
+
+    if ($val =~ /\.\./s) {
+        err "$file: $key looks malicious since it contains \"..\":  $val";
+    }
+
+    if (File::Spec->file_name_is_absolute($val)) {
+        err "$file: $key is an absolute path: $val\n";
+    }
+
+    if ($type eq 'f') {
+        if (!-f $val) {
+            err "$file: $key file $val not found.\n";
+        }
+
+    } elsif ($type eq 'd') {
+        if (!-d $val) {
+            err "$file: $key directory $val not found.\n";
+        }
+
+    } else {
+        err "unknown type: $type\n";
+    }
+}
+
+sub rebase_path ($$$) {
+    my ($a, $a_base, $b_base) = @_;
+
+    my $a_file = realpath($a);
+    my $a_dir = realpath($a_base);
+
+    if ($a_file =~ s/^\Q$a_dir\E/$b_base/) {
+        return $a_file;
+    }
+
+    return undef;
+}
+
+sub err (@) {
+    die "ERROR: ", @_;
+}
+
+sub shell ($) {
+    my $cmd = shift;
+    if (system($cmd) != 0) {
+        err "failed to run command $cmd\n";
+    }
+}
+
+sub usage {
+    my $rc = shift;
+
+    my $msg = <<_EOC_;
+opm [options] command package...
+
+Options:
+    -h
+    --help              Print this help.
+
+    --cwd               Install into the current working directory under ./resty_modules/
+                        instead of the system-wide OpenResty installation tree contaning
+                        this tool.
+
+Commands:
+    build               Build from the current working directory a package tarball ready
+                        for uploading to the server.
+
+    info PACKAGE...     Output the detailed information (or meta data) about the specified
+                        packages.  Short package names like "lua-resty-lock" are acceptable.
+
+    get PACKAGE...      Fetch and install the specified packages. Fully qualified package
+                        names like "openresty/lua-resty-lock" are required. One can also
+                        specify a version constraint like "=0.05" and ">=0.01".
+
+    list                List all the installed packages. Both the package names and versions
+                        are displayed.
+
+    remove PACKAGE...   Remove (or uninstall) the specified packages. Short package names
+                        like "lua-resty-lock" are acceptable.
+
+    search QUERY...     Search on the server for packages matching the user queries in their
+                        names or abstracts. Multiple queries can be specified and they must
+                        fulfilled at the same time.
+
+    server-build        Build a final package tarball ready for distribution on the server.
+                        This command is usually used by the server to verify the uploaded
+                        package tarball.
+
+    update              Update all the installed packages to their latest version from
+                        the server.
+
+    upgrade PACKAGE...  Upgrade the packages specified by names to the latest version from
+                        the server. Short package names like "lua-resty-lock" are acceptable.
+
+    upload              Upload the package tarball to the server. This command always invokes
+                        the build command automatically right before uploading.
+
+For bug reporting instructions, please see:
+
+    <https://openresty.org/en/community.html>
+
+Copyright (C) Yichun Zhang (agentzh). All rights reserved.
+_EOC_
+    if ($rc == 0) {
+        print $msg;
+        exit(0);
+    }
+
+    warn $msg;
+    exit($rc);
 }

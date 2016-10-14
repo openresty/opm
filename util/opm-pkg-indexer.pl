@@ -2,9 +2,11 @@
 
 # Copyright (C) Yichun Zhang (agentzh)
 
+use v5.10.1;
 use strict;
 use warnings;
 
+use sigtrap qw(die INT);
 use Time::HiRes qw( sleep );
 use URI ();
 use LWP::UserAgent ();
@@ -14,6 +16,8 @@ use File::Spec ();
 use File::Copy qw( copy );
 use File::Path qw( make_path );
 use Digest::MD5 ();
+use Getopt::Std qw( getopts );
+use Cwd qw( cwd );
 
 sub http_req ($$$);
 sub main ();
@@ -21,15 +25,27 @@ sub process_cycle ();
 sub gen_backup_file_prefix ();
 sub shell (@);
 sub read_ini ($);
+sub err_log;
 
-my $json_xs = JSON::XS->new->utf8;
+my $json_xs = JSON::XS->new;
 
 my $version = '0.0.1';
+
+my %opts;
+getopts("di:", \%opts) or die;
+
+my $as_daemon = $opts{d};
+my $iterations = $opts{i} || 0;  # 0 means infinite
 
 my $api_server_host = shift || "127.0.0.1";
 my $api_server_port = shift || 8080;
 my $failed_dir = shift || "/tmp/failed";
 my $original_dir = shift || "/tmp/original";
+
+my $SpecialDepPat = qr/^(?:openresty|luajit|ngx_(?:http_)?lua|nginx)$/;
+
+my $name = "opm-pkg-indexer";
+my $pid_file = File::Spec->rel2abs("$name.pid");
 
 $ENV{LC_ALL} = 'C';
 
@@ -45,36 +61,99 @@ $ua->agent("opm pkg indexer" . $version);
 my $req = HTTP::Request->new();
 $req->header(Host => "opm.openresty.org");
 
-my $MAX_FAILS = 100;
-my $MAX_HTTP_TRIES = 10;
-my $MAX_DEPS = 100;
+my $MAX_SLEEP_TIME = 1;  # sec
+my $MAX_HTTP_TRIES = 3;
+my $MAX_DEPS = 50;
+#my $MAX_DEPS = 0;
+
+if (-f $pid_file) {
+    open my $in, $pid_file
+        or die "cannot open $pid_file for reading: $!\n";
+    my $pid = <$in>;
+    close $in;
+
+    chomp $pid;
+
+    if (!$pid) {
+        unlink $pid_file or die "cannot rm $pid_file: $!\n";
+
+    } else {
+        my $file = $pid_file;
+        undef $pid_file;
+        die "Found pid file $file. ",
+            "Another process $pid may still be running.\n";
+    }
+}
+
+if ($opts{d}) {
+    my $log_file = "$name.log";
+
+    require Proc::Daemon;
+
+    my $daemon = Proc::Daemon->new(
+        work_dir => cwd,
+        child_STDOUT => "+>>$log_file",
+        child_STDERR => "+>>$log_file",
+        pid_file => $pid_file,
+    );
+
+    my $pid = $daemon->Init;
+    if ($pid == 0) {
+        # in the forked daemon
+
+    } else {
+        # in parent
+        #err_log "write pid file $pid_file: $pid";
+        #write_pid_file($pid);
+        exit;
+    }
+
+} else {
+    write_pid_file($$);
+}
+
+sub cleanup {
+    if (!$as_daemon) {
+        if (defined $pid_file && -f $pid_file) {
+            unlink $pid_file;
+        }
+    }
+}
+
+END {
+    cleanup();
+    exit;
+}
 
 main();
 
+unlink $pid_file or die "cannot remove $pid_file: $!\n";;
+
 sub main () {
-    my $fails = 0;
-    #while (1) {
-    for (1) {
+    my $sleep_time = 0.001;
+    #err_log "iterations: $iterations";
+    for (my $i = 1; $iterations <= 0 || $i <= $iterations; $i++) {
         my $ok;
         eval {
             $ok = process_cycle();
         };
         if ($@) {
-            warn "failed to process: $@";
+            err_log "failed to process: $@";
         }
 
         if (!$ok) {
-            sleep 0.001 * $fails;
+            #err_log $sleep_time;
+            sleep $sleep_time;
 
-            if ($fails < $MAX_FAILS) {
-                $fails++;
+            if ($sleep_time < $MAX_SLEEP_TIME) {
+                $sleep_time *= 2;
             }
 
             next;
         }
 
         # ok
-        $fails = 0;
+        $sleep_time = 0.001;
     }
 }
 
@@ -117,7 +196,7 @@ sub process_cycle () {
         my $path = File::Spec->catfile($incoming_dir, $account, $fname);
         if (!-f $path) {
             $errstr = "file $path does not exist";
-            warn $errstr;
+            err_log $errstr;
             goto FAIL_UPLOAD;
         }
 
@@ -126,7 +205,7 @@ sub process_cycle () {
             my $in;
             if (!open $in, $path) {
                 $errstr = "cannot open $path for reading: $!";
-                warn $errstr;
+                err_log $errstr;
                 goto FAIL_UPLOAD;
             }
 
@@ -139,16 +218,16 @@ sub process_cycle () {
         if ($md5sum ne $orig_checksum) {
             $errstr = "MD5 checksum for the original package mismatch: "
                       . "$md5sum vs $orig_checksum\n";
-            warn $errstr;
+            err_log $errstr;
             goto FAIL_UPLOAD;
         }
 
-        #warn "file $path found";
+        #err_log "file $path found";
 
         my $cwd = File::Spec->catdir($incoming_dir, $account);
         if (!chdir $cwd) {
             $errstr = "failed to chdir to $cwd: $!";
-            warn $errstr;
+            err_log $errstr;
             goto FAIL_UPLOAD;
         }
 
@@ -162,7 +241,7 @@ sub process_cycle () {
 
         if (!shell "tar", "-xzf", $path) {
             $errstr = "failed to unpack $fname";
-            warn $errstr;
+            err_log $errstr;
             goto FAIL_UPLOAD;
         }
 
@@ -173,21 +252,22 @@ sub process_cycle () {
         }
 
         if (!chdir $dir) {
-            $errstr = "failed to chdir to $dir $!";
-            warn $errstr;
+            $errstr = "failed to chdir to $dir: $!";
+            err_log $errstr;
             goto FAIL_UPLOAD;
         }
 
-        if (!shell "ulimit -t 10 -v 204800 && opm server-build") {
-            $errstr = "failed to run \"opm server-build\"";
-            warn $errstr;
+        my $out = `ulimit -t 10 -v 204800 && opm server-build 2>&1`;
+        if ($? != 0) {
+            $errstr = "failed to run \"opm server-build\":\n$out";
+            err_log $errstr;
             goto FAIL_UPLOAD;
         }
 
         my $final_file = "$name-$ver.opm.tar.gz";
         if (!-f $final_file) {
             $errstr = "failed to find $final_file from \"opm server-build\"";
-            warn $errstr;
+            err_log $errstr;
             goto FAIL_UPLOAD;
         }
 
@@ -196,7 +276,7 @@ sub process_cycle () {
             my $in;
             if (!open $in, $final_file) {
                 $errstr = "cannot open $final_file for reading: $!\n";
-                warn $errstr;
+                err_log $errstr;
                 goto FAIL_UPLOAD;
             }
 
@@ -232,17 +312,44 @@ sub process_cycle () {
         my $inifile = "dist.ini";
         my ($user_meta, $err) = read_ini($inifile);
         if (!$user_meta) {
-            $errstr = $err;
-            warn "failed to load $inifile: $errstr";
+            $errstr = "failed to load $inifile: $errstr";
+            err_log $errstr;
             goto FAIL_UPLOAD;
         }
 
         my $default_sec = $user_meta->{default};
 
+        my $meta_name = $default_sec->{name};
+        if (!$meta_name) {
+            $errstr = "$inifile: no name found";
+            err_log $errstr;
+            goto FAIL_UPLOAD;
+        }
+
+        if ($meta_name ne $name) {
+            $errstr = "$inifile: name \"$meta_name\" does not match \"$name\"";
+            err_log $errstr;
+            goto FAIL_UPLOAD;
+        }
+
+        my $meta_account = $default_sec->{account};
+        if (!$meta_account) {
+            $errstr = "$inifile: no account found";
+            err_log $errstr;
+            goto FAIL_UPLOAD;
+        }
+
+        if ($meta_account ne $account) {
+            $errstr = "$inifile: account \"$meta_account\" does not match "
+                      . "\"$account\"";
+            err_log $errstr;
+            goto FAIL_UPLOAD;
+        }
+
         my $authors = $default_sec->{author};
         if (!$authors) {
             $errstr = "$inifile: no authors found";
-            warn $errstr;
+            err_log $errstr;
             goto FAIL_UPLOAD;
         }
 
@@ -251,14 +358,14 @@ sub process_cycle () {
         my $repo_link = $default_sec->{repo_link};
         if (!$repo_link) {
             $errstr = "$inifile: no repo_link found";
-            warn $errstr;
+            err_log $errstr;
             goto FAIL_UPLOAD;
         }
 
         my $is_orig = $default_sec->{is_original};
         if (!$is_orig) {
             $errstr = "$inifile: no repo_link found";
-            warn $errstr;
+            err_log $errstr;
             goto FAIL_UPLOAD;
         }
 
@@ -270,21 +377,21 @@ sub process_cycle () {
 
         } else {
             $errstr = "$inifile: bad is_original value: $is_orig";
-            warn $errstr;
+            err_log $errstr;
             goto FAIL_UPLOAD;
         }
 
         my $abstract = $default_sec->{abstract};
         if (!$abstract) {
             $errstr = "$inifile: no abstract found";
-            warn $errstr;
+            err_log $errstr;
             goto FAIL_UPLOAD;
         }
 
         my $license = $default_sec->{license};
         if (!$license) {
             $errstr = "$inifile: no license found";
-            warn $errstr;
+            err_log $errstr;
             goto FAIL_UPLOAD;
         }
 
@@ -296,7 +403,7 @@ sub process_cycle () {
             my ($deps, $err) = parse_deps($requires, $inifile);
             if ($err) {
                 $errstr = "$inifile: requires: $err";
-                warn $errstr;
+                err_log $errstr;
                 goto FAIL_UPLOAD;
             }
 
@@ -318,11 +425,16 @@ sub process_cycle () {
                     } elsif ($op eq '=') {
                         $op_arg = "eq";
 
+                    } elsif ($op eq '>') {
+                        $op_arg = "gt";
+
                     } else {
                         $errstr = "bad dependency operator: $op";
-                        warn $errstr;
+                        err_log $errstr;
                         goto FAIL_UPLOAD;
                     }
+
+                    $ver_arg = $ver;
 
                 } else {
                     $op_arg = "";
@@ -337,8 +449,15 @@ sub process_cycle () {
                     my ($res, $err) = http_req($uri, undef, { 404 => 1 });
 
                     if (!$res) {
-                        $errstr = "package dependency check failed on \"$name $op $ver\": $err";
-                        warn $errstr;
+                        my $spec;
+                        if (!defined $op || !defined $ver) {
+                            $spec = '';
+                        } else {
+                            $spec = " $op $ver";
+                        }
+
+                        $errstr = "package dependency check failed on \"$name$spec\": $err";
+                        err_log $errstr;
                         goto FAIL_UPLOAD;
                     }
 
@@ -352,7 +471,7 @@ sub process_cycle () {
         }
 
         $dir = "../..";
-        chdir $dir or warn "cannot chdir $dir: $!";
+        chdir $dir or err_log "cannot chdir $dir: $!";
 
         if (-d $dist_dir) {
             shell "rm", "-rf", $dist_dir;
@@ -371,7 +490,7 @@ sub process_cycle () {
                 if ($@) {
                     # failed
                     $failed = 1;
-                    warn $@;
+                    err_log $@;
                 }
             }
 
@@ -379,7 +498,7 @@ sub process_cycle () {
                 my $dstfile = File::Spec->catfile($orig_subdir, $fname);
 
                 if (!copy($path, $dstfile)) {
-                    warn "failed to copy $path to $dstfile: $!";
+                    err_log "failed to copy $path to $dstfile: $!";
                 }
             }
         }
@@ -419,7 +538,7 @@ FAIL_UPLOAD:
                 };
                 if ($@) {
                     # failed
-                    warn $@;
+                    err_log $@;
                 }
             }
 
@@ -427,7 +546,7 @@ FAIL_UPLOAD:
             my $dstfile = File::Spec->catfile($failed_subdir, "$prefix-$fname");
 
             copy($path, $dstfile)
-                or warn "failed to copy $path to $dstfile: $!";
+                or err_log "failed to copy $path to $dstfile: $!";
         }
 
         if (-d $dist_dir) {
@@ -451,6 +570,13 @@ FAIL_UPLOAD:
 sub gen_backup_file_prefix () {
     my ($sec, $min, $hour, $mday, $mon, $year) = localtime();
     return sprintf("%04d-%02d-%02d-%02d-%02d-%02d",
+                   $year + 1900,  $mon + 1, $mday,
+                   $hour, $min, $sec);
+}
+
+sub gen_timestamp () {
+    my ($sec, $min, $hour, $mday, $mon, $year) = localtime();
+    return sprintf("%04d-%02d-%02d %02d:%02d:%02d",
                    $year + 1900,  $mon + 1, $mday,
                    $hour, $min, $sec);
 }
@@ -482,11 +608,11 @@ sub http_req ($$$) {
                 || (defined $no_retry_statuses
                     && $no_retry_statuses->{$status}))
             {
-                warn $err;
+                err_log $err;
                 return undef, $err;
             }
 
-            warn "attempt $i of $MAX_HTTP_TRIES: $err";
+            err_log "attempt $i of $MAX_HTTP_TRIES: $err";
 
             sleep $i * 0.001;
             next;
@@ -499,7 +625,7 @@ sub http_req ($$$) {
         };
 
         if ($@) {
-            warn "failed to decode JSON data $body for uri $uri: $@";
+            err_log "failed to decode JSON data $body for uri $uri: $@";
             sleep $i * 0.001;
             next;
         }
@@ -513,7 +639,7 @@ sub http_req ($$$) {
 sub shell (@) {
     if (system(@_) != 0) {
         my $cmd = join(" ", map { /\s/ ? "'$_'" : $_ } @_);
-        warn "failed to run the command \"$cmd\": $?";
+        err_log "failed to run the command \"$cmd\": $?";
         return undef;
     }
 
@@ -587,7 +713,7 @@ sub parse_deps {
             if ($full_name =~ m{^ ([-\w]+) / ([-\w]+)  }x) {
                 ($account, $name) = ($1, $2);
 
-            } elsif ($full_name eq 'openresty' || $full_name eq 'luajit') {
+            } elsif ($full_name =~ $SpecialDepPat) {
                 $name = $full_name;
 
             } else {
@@ -596,7 +722,7 @@ sub parse_deps {
 
             push @parsed, [$account, $name];
 
-        } elsif ($item =~ m{^ ([-/\w]+) \s* (\S+) \s* (\S+) $}x) {
+        } elsif ($item =~ m{^ ([-/\w]+) \s* ([^\w\s]+) \s* (\w\S*) $}x) {
             my ($full_name, $op, $ver) = ($1, $2, $3);
 
             my ($account, $name);
@@ -604,14 +730,14 @@ sub parse_deps {
             if ($full_name =~ m{^ ([-\w]+) / ([-\w]+)  }x) {
                 ($account, $name) = ($1, $2);
 
-            } elsif ($full_name eq 'openresty' || $full_name eq 'luajit') {
+            } elsif ($full_name =~ $SpecialDepPat) {
                 $name = $full_name;
 
             } else {
                 return undef, "$file: bad dependency name: $full_name";
             }
 
-            if ($op !~ /^ (?: >= | = ) $/x) {
+            if ($op !~ /^ (?: >= | = | > ) $/x) {
                 return undef, "$file: bad dependency version comparison"
                               . " operator in \"$item\": $op";
             }
@@ -630,4 +756,18 @@ sub parse_deps {
 
     @parsed = sort { $a->[1] cmp $b->[1] } @parsed;
     return \@parsed;
+}
+
+sub write_pid_file {
+    my $pid = shift;
+    open my $out, ">$pid_file"
+        or die "cannot open $pid_file for writing: $!\n";
+    print $out $pid;
+    close $out;
+}
+
+sub err_log {
+    my @args = @_;
+    my $ts = gen_timestamp();
+    warn "[$ts] ", @args;
 }
