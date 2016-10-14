@@ -1517,9 +1517,11 @@ do
 
         local sql = "select abstract, package_name, orgs.login as org_name"
                     .. ", users.login as uploader_name"
+                    .. ", tmp.stargazers_count as stargazers_count"
                     .. " from (select last(abstract) as abstract"
                     .. ", package_name, org_account, uploader"
                     .. ", ts_rank_cd(last(ts_idx), last(q), 1) as rank"
+                    .. ", max(stargazers_count) as stargazers_count"
                     .. " from uploads, plainto_tsquery("
                     .. quote_sql_str(query) .. ") q"
                     .. " where indexed = true and ts_idx @@ q"
@@ -1539,11 +1541,17 @@ do
 
         tab_clear(results)
 
-        local i = 0
+        local i = 1
+        local show_pattern = "%-40s  %6s  %s\n"
+        results[i] = string.format(show_pattern,
+                    "NAME",
+                    "STARS", "DESCRIPTION")
+
         for _, row in ipairs(rows) do
             local uploader = row.uploader_name
             local org = row.org_name
             local pkg = row.package_name
+            local star = tostring(row.stargazers_count)
 
             local account
             if org and org ~= ngx_null then
@@ -1554,30 +1562,9 @@ do
             end
 
             i = i + 1
-            results[i] = account
-
-            i = i + 1
-            results[i] = "/"
-
-            i = i + 1
-            results[i] = pkg
-
-            local len = #account + #pkg + 1
-
-            if len < 50 then
-                len = 50 - len
-            else
-                len = 4
-            end
-
-            i = i + 1
-            results[i] = str_rep(" ", len)
-
-            i = i + 1
-            results[i] = row.abstract
-
-            i = i + 1
-            results[i] = "\n"
+            results[i] = string.format(show_pattern,
+                    account .. "/" .. pkg,
+                    star, row.abstract)
         end
 
         ngx_print(results)
