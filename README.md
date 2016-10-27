@@ -390,6 +390,24 @@ Artistic License
 * `artistic2`
 
 Artistic License 2.0
+* `ccby`
+
+Creative Commons Attribution 4.0 International Public License
+* `ccbysa`
+
+Creative Commons Attribution-ShareAlike 4.0 International Public License
+* `ccbynd`
+
+Creative Commons Attribution-NoDerivatives 4.0 International Public License
+* `ccbync`
+
+Creative Commons Attribution-NonCommercial 4.0 International Public License
+* `ccbyncsa`
+
+Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International Public License
+* `ccbyncnd`
+
+Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International Public License
 * `cddl`
 
 Common Development and Distribution License
