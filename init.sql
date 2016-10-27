@@ -89,7 +89,6 @@ create table uploads (
     size integer not null,
     package_name varchar(256) not null,
     abstract text,
-    stargazers_count integer not null,
 
     version_v integer[] not null,
     version_s varchar(128) not null,
