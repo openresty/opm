@@ -1572,7 +1572,7 @@ do
             local uploader = row.uploader_name
             local org = row.org_name
             local pkg = row.package_name
-            local star = tostring(row.stargazers_count)
+            local star = tostring(row.stargazers_count or "")
 
             local account
             if org and org ~= ngx_null then
