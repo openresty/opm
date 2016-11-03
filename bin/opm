@@ -76,6 +76,7 @@ sub rebase_path ($$$);
 
 GetOptions("h|help",          \(my $help),
            "cwd",             \(my $install_into_cwd),
+           "install-dir=s",   \(my $install_into_dir),
            "verbose",         \(my $verbose))
    or usage(1);
 
@@ -1509,7 +1510,14 @@ SKIP_INSTALL:
 }
 
 sub get_install_dir () {
-    if (defined $install_into_cwd) {
+    if (defined $install_into_dir) {
+        my $dir = File::Spec->rel2abs($install_into_dir);
+        if (!-d $dir) {
+            make_path $dir;
+        }
+        return $dir;
+    }
+    elsif (defined $install_into_cwd) {
         my $dir = File::Spec->catdir(cwd(), "resty_modules");
         if (!-d $dir) {
             make_path $dir;
@@ -2279,8 +2287,11 @@ Options:
     -h
     --help              Print this help.
 
+    --install-dir=PATH  Install into the specified PATH directory instead of the system-wide
+                        OpenResty installation tree containing this tool.
+
     --cwd               Install into the current working directory under ./resty_modules/
-                        instead of the system-wide OpenResty installation tree contaning
+                        instead of the system-wide OpenResty installation tree containing
                         this tool.
 
 Commands:

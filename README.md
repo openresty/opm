@@ -175,8 +175,12 @@ Options:
     -h
     --help              Print this help.
 
+
+    --install-dir=PATH  Install into the specified PATH directory instead of the system-wide
+                        OpenResty installation tree containing this tool.
+
     --cwd               Install into the current working directory under ./resty_modules/
-                        instead of the system-wide OpenResty installation tree contaning
+                        instead of the system-wide OpenResty installation tree containing
                         this tool.
 
 Commands:
