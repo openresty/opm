@@ -113,9 +113,14 @@ if ($opts{d}) {
 }
 
 sub cleanup {
-    if (!$as_daemon) {
-        if (defined $pid_file && -f $pid_file) {
-            unlink $pid_file;
+    if (defined $pid_file && -f $pid_file) {
+        my $in;
+        if (open $in, $pid_file) {
+            my $pid = <$in>;
+            if ($pid eq $$) {
+                unlink $pid_file;
+            }
+            close $in;
         }
     }
 }
