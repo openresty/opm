@@ -6,7 +6,7 @@ use v5.10.1;
 use strict;
 use warnings;
 
-use sigtrap qw(die INT);
+use sigtrap qw(die INT QUIT TERM);
 use Time::HiRes qw( sleep );
 use URI ();
 use LWP::UserAgent ();
