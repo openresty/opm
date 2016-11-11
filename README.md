@@ -1,7 +1,7 @@
 Name
 ====
 
-opm - OpenResty Package Managemener
+opm - OpenResty Package Manager
 
 Table of Contents
 =================
