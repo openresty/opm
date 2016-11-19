@@ -1345,7 +1345,7 @@ sub install_target ($$) {
         shell "rm -rf '$dist_dir'";
     }
 
-    shell "tar -xzf '$dist_file'";
+    shell "tar --no-same-owner -xzf '$dist_file'";
 
     if (!-d $dist_dir) {
         err "the unpacked directory $dist_dir not found under $cache_subdir.\n";
