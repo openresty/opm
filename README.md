@@ -821,13 +821,12 @@ Perl's `cpan` and [Dist::Zilla](http://dzil.org/), RedHat's `yum`, NodeJS's `npm
 TODO
 ====
 
-* Add the `--install-dir=PATH` option to allow the user install into an arbitrary location that she specifies.
 * Add `opm reinstall` command to reinstall an already installed module (at the same version).
 * Add `opm doctor` command to check if there is any inconsistency in the current opm package installation tree.
 * Add `opm files <package>` command to list all the files in the specified package.
 * Add `opm whatprovides <package>` command to find out which package the specified file belongs to.
 * Add plugin mechanisms to `opm build` (similar to Perl's [Dist::Zilla](http://dzil.org/) packaging framework).
-* Add a web site for opm.openresty.org (similar to search.cpan.org).
+* Turn opm.openresty.org into a full-blown web site similar to search.cpan.org.
 * Add support for Lua C modules and LuaJIT FFI modules with standalone C libraries.
 * Add support for 3rd-party NGINX C modules (which can be compiled as NGINX dynamic modules).
 * Add (limited) support for LuaRocks via the special name space `luarocks`, for example,
