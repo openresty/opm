@@ -1625,7 +1625,7 @@ function _M.do_index_page()
                 .. [[ from uploads]]
                 .. [[ left join users on uploads.uploader = users.id]]
                 .. [[ left join orgs on uploads.org_account = orgs.id]]
-                .. [[ order by uploads.updated_at desc limit 100]]
+                .. [[ order by uploads.updated_at desc limit 1000]]
 
     local recent_uploads = query_db(sql)
 
