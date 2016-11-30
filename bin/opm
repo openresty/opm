@@ -12,12 +12,12 @@ use File::Find ();
 use File::Path qw( make_path );
 use File::Spec ();
 use Config ();
-use Cwd qw( realpath cwd );
+use Cwd qw( realpath cwd getcwd );
 use Digest::MD5 ();
 use File::Copy qw( copy move );
 use File::Temp qw( tempfile );
 use Getopt::Long qw( GetOptions :config no_ignore_case require_order);
-#use Data::Dumper qw( Dumper );
+# use Data::Dumper qw( Dumper );
 
 my $MAX_DEPS = 100;
 my $Version = '0.0.1';
@@ -58,15 +58,18 @@ sub is_valid_dist_name ($$);
 sub find_sys_install_dir ();
 sub get_install_dir ();
 sub install_file ($$$);
+sub install_distribution ($$$);
 sub install_target ($$);
 sub upgrade_target ($$$$);
 sub remove_target ($$$);
 sub do_build ($);
+sub do_build_install ();
 sub check_lock_file ();
 sub get_rc_file ();
 sub create_stub_rc_file ($);
 sub read_ini ($);
 sub init_installation_ctx ($);
+sub init_package_ctx ($);
 sub cmp_version ($$);
 sub search_pkg_name ($$);
 sub test_version_spec ($$$$$);
@@ -101,6 +104,7 @@ if ($cmd eq '-v') {
 delete $ENV{LUA_PATH};
 delete $ENV{LUA_CPATH};
 
+# main command handling block
 for ($cmd) {
     if ($_ eq 'get' || $_ eq 'install') {
         check_lock_file();
@@ -108,15 +112,18 @@ for ($cmd) {
         do_get(@ARGV);
 
     } elsif ($_ eq 'build') {
-        do_build(0);
+        do_build(0);  # 0 = normal build
 
     } elsif ($_ eq 'server-build') {
-        do_build(1);
+        do_build(1);  # 1 = server-build
+
+    } elsif ($_ eq 'build-install') {
+        do_build_install();
 
     } elsif ($_ eq 'upload') {
         check_lock_file();
 
-        do_build(0);
+        do_build(0);  # 0 = normal build
         do_upload();
 
     } elsif ($_ eq 'remove' || $_ eq 'uninstall') {
@@ -174,7 +181,14 @@ sub do_get {
 }
 
 sub do_build ($) {
-    my $server_build = shift;
+=pod
+`do_build($)`
+The first argument indicates the build type
+	0 = build
+	1 = server-build
+=cut
+    my $_build_type = shift;
+    my $server_build = ($_build_type == 1) ? 1 : 0;
 
     #if ($server_build) { while (1) {} }
 
@@ -662,6 +676,75 @@ _EOC_
     #if ($server_build) {
     #err "something bad bad bad.\n";
     #}
+
+    warn "build successful: '$TarBall'\n";
+}
+
+sub do_build_install () {
+=pod
+`do_build_install()`
+This builds the currently authored package, then installs it locally (without 
+communicated with the opm server).
+
+It performs these functions:
+
+	opm build
+	cd $dist_name-$version/
+	opm server-build
+	install $dist_name-$version.opm.tar.gz  # psuedocode
+=cut
+
+	# phase 1 - `opm build`
+	do_build(0);  # 0 = normal
+
+	# phase 2 - `cd $dist_name-$version/`
+	# phase 2a - derive the version data	
+    my $dist_file = "dist.ini";
+    my $data = read_ini($dist_file);
+    my $default_sec = $data->{default};
+    my $dist_name = $default_sec->{name};
+    my $version = $default_sec->{version};
+
+	# phase 2b - `cd `
+	my $versioned_directory = "$dist_name-$version";
+	chdir $versioned_directory;
+
+	# phase 3 - `opm server-build`
+	shell "opm server-build";
+
+	# phase 4 - `install $dist_name-$version.opm.tar.gz`
+	# we're down a directory, go back up
+	# actually, don't.  the opm.gz file is what we want to install here
+	# chdir File::Spec->updir;
+
+	my $versioned_file = "$dist_name-$version.opm.tar.gz";
+
+	# we need the account info
+	my ($rc_file, $rc_data) = get_rc_file();
+	my $account = $rc_data->{default}->{github_account};
+	if (!$account) {
+		err "$rc_file: no \"github_account\" specified.\n";
+	}
+	
+    my $ctx = init_installation_ctx(0);
+
+	# is it installed?
+	my $meta_file = File::Spec->catfile($ctx->{manifest_dir}, "$dist_name.meta");
+    my $remove_old;
+    if (-f $meta_file) {
+    	$remove_old = 1;
+	}
+
+
+    my $package_ctx_args = {
+    	"manifest_dir" => $ctx->{manifest_dir},
+    	"working_dir" => getcwd(),
+    	"account" => $account,
+    	"name" => $dist_name,
+    	"remove_old" => $remove_old,
+    };
+    my $package_ctx = init_package_ctx($package_ctx_args);
+    install_distribution($ctx, $package_ctx, $versioned_file);
 }
 
 sub read_ini ($) {
@@ -1356,14 +1439,48 @@ sub install_target ($$) {
         shell "rm -rf '$dist_dir'";
     }
 
-    shell "tar -oxzf '$dist_file'";
+	my $package_ctx_args = {
+		"working_dir" => $cache_dir,
+		"cwd" => $cwd,
+		"manifest_dir" => $manifest_dir,
+		"account" => $account,
+		"name" => $name,
+		"remove_old" => $remove_old,
+	};
+    my $package_ctx = init_package_ctx($package_ctx_args);
+    install_distribution($ctx, $package_ctx, $dist_file, );
+    return;
+
+SKIP_INSTALL:
+
+    warn "Package $name-$installed_ver already installed.\n";
+    return;
+}
+
+
+sub install_distribution($$$){
+=pod
+installs a distribution file (.tar.gz)
+=cut
+	my ($ctx, $package_ctx, $distribution_file) = @_;
+	my $working_dir = $package_ctx->{working_dir};
+	my $account = $package_ctx->{account};
+	my $name = $package_ctx->{name};
+
+	if (!-e $distribution_file){
+		err "the distribution was not found"
+	}
+
+    (my $dist_dir = $distribution_file) =~ s/\.tar\.gz$//;
+
+    shell "tar -oxzf '$distribution_file'";
 
     if (!-d $dist_dir) {
-        err "the unpacked directory $dist_dir not found under $cache_subdir.\n";
+        err "the unpacked directory $dist_dir not found under $working_dir.\n";
     }
 
     chdir $dist_dir
-        or err "cannot chdir to $cache_subdir/$dist_dir: $!\n";
+        or err "cannot chdir to $working_dir/$dist_dir: $!\n";
 
     # read dist.ini
 
@@ -1417,7 +1534,7 @@ sub install_target ($$) {
         err "no library files found in $dist_dir/.\n";
     }
 
-    if ($remove_old) {
+    if ($package_ctx->{remove_old}) {
         remove_target($ctx, $name, undef);
     }
 
@@ -1464,7 +1581,7 @@ sub install_target ($$) {
         install_file($src, $dst, $pod_dir);
     }
 
-    my $list_file = File::Spec->catfile($manifest_dir, "$name.list");
+    my $list_file = File::Spec->catfile($package_ctx->{manifest_dir}, "$name.list");
 
     {
         open my $out, ">$list_file"
@@ -1484,7 +1601,7 @@ sub install_target ($$) {
         close $out;
     }
 
-    install_file($ini_file, "$name.meta", $manifest_dir);
+    install_file($ini_file, "$name.meta", $package_ctx->{manifest_dir});
 
     # install resty.index
 
@@ -1513,14 +1630,9 @@ sub install_target ($$) {
     warn "Package $account/$name $version installed successfully ",
          "under $install_dir/ .\n";
 
-    chdir $cwd
-        or err "cannot chdir to $cwd: $!\n";
+    chdir $package_ctx->{cwd}
+        or err "cannot chdir to " . $package_ctx->{cwd} . ": $!\n";
 
-    return;
-
-SKIP_INSTALL:
-
-    warn "Package $name-$installed_ver already installed.\n";
     return;
 }
 
@@ -1919,6 +2031,25 @@ sub do_upgrade {
         upgrade_target($ctx, $account, $name, $meta_file);
     }
 }
+
+sub init_package_ctx ($){
+=pod
+The `package_ctx` is a scoped context object.
+It is used in parallel to the `installation_ctx`.
+=cut
+	my $defaults = shift;
+	my $package_ctx = {
+		cwd => $defaults->{cwd} // cwd,
+		getcwd => $defaults->{getcwd} // getcwd(),
+		working_dir => $defaults->{working_dir} // undef,  # install_target,
+		manifest_dir => $defaults->{manifest_dir} // undef,  # install_target, do_build_install
+		account => $defaults->{account} // undef,  # install_target, do_build_install
+		name => $defaults->{name} // undef,  # install_target
+		remove_old => $defaults->{remove_old} // undef,  # install_target
+	};
+	return $package_ctx;
+}
+
 
 sub init_installation_ctx ($) {
     my $upgrade = shift;
@@ -2328,6 +2459,9 @@ Options:
 Commands:
     build               Build from the current working directory a package tarball ready
                         for uploading to the server.
+
+    build-install       Build from the current working directory a package tarball ready
+                        for uploading to the server, and install locally.
 
     clean ARGUMENT...   Do clean-up work. Currently the valid argument is "dist", which
                         cleans up the temporary files and directories created by the "build"
