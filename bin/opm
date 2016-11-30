@@ -17,7 +17,7 @@ use Digest::MD5 ();
 use File::Copy qw( copy move );
 use File::Temp qw( tempfile );
 use Getopt::Long qw( GetOptions :config no_ignore_case require_order);
-# use Data::Dumper qw( Dumper );
+#use Data::Dumper qw( Dumper );
 
 my $MAX_DEPS = 100;
 my $Version = '0.0.1';
