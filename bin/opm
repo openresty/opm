@@ -2004,12 +2004,12 @@ sub upgrade_target ($$$$) {
     my ($ctx, $account, $name, $meta_file) = @_;
 
     my $ini_data = read_ini $meta_file;
-    my $rc_default_sec = $ini_data->{default};
+    my $ini_default_sec = $ini_data->{default};
 
-    my $ver = $rc_default_sec->{version}
+    my $ver = $ini_default_sec->{version}
         or err "$meta_file: key \"version\" not found.\n";
 
-    my $meta_account = $rc_default_sec->{account}
+    my $meta_account = $ini_default_sec->{account}
         or err "$meta_file: key \"account\" not found.\n";
 
     if ($account && $meta_account ne $account) {
