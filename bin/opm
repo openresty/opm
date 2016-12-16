@@ -173,31 +173,30 @@ sub do_get {
 
     #warn Dumper($deps);
 
-    my $ctx = init_installation_ctx(0);
+    my $ctx = init_installation_ctx(0);  # 0 = do not `$upgrade`
 
     for my $dep (@$deps) {
         install_target($ctx, $dep);
     }
 }
 
-sub do_build ($) {
-=pod
-`do_build($)`
-The first argument indicates the build type
-	0 = build
-	1 = server-build
-=cut
-    my $_build_type = shift;
-    my $server_build = ($_build_type == 1) ? 1 : 0;
 
-    #if ($server_build) { while (1) {} }
+=begin comment
+	`do_build($)`
+	The first argument indicates the build type should be a server build
+	`$is_server_build` should just be a "truthy" value (1 vs 0)
+=end comment
+=cut
+
+sub do_build ($) {
+    my $is_server_build = shift;
 
     if (!defined $LuaJIT) {
         $LuaJIT = find_luajit();
     }
 
     my $account;
-    if (!$server_build) {
+    if (!$is_server_build) {
         my ($rc_file, $rc_data) = get_rc_file();
         my $rc_default_sec = $rc_data->{default};
         $account = delete $rc_default_sec->{github_account};
@@ -216,7 +215,7 @@ The first argument indicates the build type
     my $dist_name = delete $ini_default_sec->{name};
     is_valid_dist_name($dist_name, $dist_file);
 
-    if ($server_build) {
+    if ($is_server_build) {
         $account = delete $ini_default_sec->{account}
             or err "$dist_file: key \"account\" not found in the default section.\n";
     }
@@ -312,7 +311,7 @@ The first argument indicates the build type
 
 =begin comment
 
-    if (!$server_build) {
+    if (!$is_server_build) {
         my $out = `curl -sS -I $repo_link 2>&1`;
         if ($out =~ m{^ HTTP/1\.\d \s+ (\d+) \b}ix) {
             my $status = $1;
@@ -331,7 +330,7 @@ The first argument indicates the build type
 
     my $version = delete $ini_default_sec->{version};
 
-    if ($server_build && !$version) {
+    if ($is_server_build && !$version) {
             err "$dist_file: \"version\" field not defined in the default section.\n";
     }
 
@@ -351,8 +350,8 @@ The first argument indicates the build type
             err "$dist_file: requires: too many dependencies: $ndeps\n";
         }
 
-        if (!$server_build) {
-            my $ctx = init_installation_ctx(0);
+        if (!$is_server_build) {
+            my $ctx = init_installation_ctx(0);  # 0 = do not `$upgrade`
             $ctx->{level} = 1;
 
             for my $dep (@$deps) {
@@ -377,7 +376,7 @@ The first argument indicates the build type
 
     my $lib_dir = delete $ini_default_sec->{lib_dir};
 
-    if ($server_build && $lib_dir ne 'lib') {
+    if ($is_server_build && $lib_dir ne 'lib') {
         err "$dist_file: \"lib_dir\" must be \"lib\".\n";
     }
 
@@ -499,7 +498,7 @@ The first argument indicates the build type
 
     my $doc_dir = delete $ini_default_sec->{doc_dir};
 
-    if ($server_build && $doc_dir ne 'lib') {
+    if ($is_server_build && $doc_dir ne 'lib') {
         err "$dist_file: \"doc_dir\" must be \"lib\".\n";
     }
 
@@ -515,7 +514,7 @@ The first argument indicates the build type
 
     my $root_dir = "$dist_name-$version";
 
-    if ($server_build) {
+    if ($is_server_build) {
         $root_dir .= ".opm";
     }
 
@@ -526,7 +525,7 @@ The first argument indicates the build type
     my $dst_lib_dir = File::Spec->catfile($root_dir, "lib");
     make_path($dst_lib_dir);
 
-    if ($server_build) {
+    if ($is_server_build) {
         my $restydoc_index = find_restydoc_index();
         shell "$restydoc_index --outdir '$root_dir' .";
     }
@@ -586,7 +585,7 @@ The first argument indicates the build type
         #warn "$fname => $File::Find::name";
     } },  $doc_dir);
 
-    if (!$server_build) {
+    if (!$is_server_build) {
         my $dst_doc_dir = File::Spec->catfile($root_dir, "lib");
         make_path($dst_doc_dir);
 
@@ -673,75 +672,78 @@ _EOC_
     $TarBall = "$root_dir.tar.gz";
     shell "tar -cvzf '$TarBall' '$root_dir'";
 
-    #if ($server_build) {
+    #if ($is_server_build) {
     #err "something bad bad bad.\n";
     #}
 
     warn "build successful: '$TarBall'\n";
 }
 
-sub do_build_install () {
-=pod
+
+=begin comment
 `do_build_install()`
-This builds the currently authored package, then installs it locally (without 
+This builds the currently authored package, then installs it locally (without
 communicated with the opm server).
 
 It performs these functions:
-
-	opm build
-	cd $dist_name-$version/
-	opm server-build
-	install $dist_name-$version.opm.tar.gz  # psuedocode
+    opm build
+    cd $dist_name-$version/
+    opm server-build
+    install $dist_name-$version.opm.tar.gz  # psuedocode
+=end comment
 =cut
+sub do_build_install () {
+    # phase 1 - `opm build`
+    do_build(0);  # 0 = normal
 
-	# phase 1 - `opm build`
-	do_build(0);  # 0 = normal
-
-	# phase 2 - `cd $dist_name-$version/`
-	# phase 2a - derive the version data	
+    # phase 2 - `cd $dist_name-$version/`
+    # phase 2a - derive the version data
     my $dist_file = "dist.ini";
     my $data = read_ini($dist_file);
     my $default_sec = $data->{default};
     my $dist_name = $default_sec->{name};
     my $version = $default_sec->{version};
 
-	# phase 2b - `cd `
-	my $versioned_directory = "$dist_name-$version";
-	chdir $versioned_directory;
+    # phase 2b - `cd `
+    my $versioned_directory = "$dist_name-$version";
+    chdir $versioned_directory;
 
-	# phase 3 - `opm server-build`
-	shell "opm server-build";
+    # phase 3 - `opm server-build`
+    shell "opm server-build";
 
-	# phase 4 - `install $dist_name-$version.opm.tar.gz`
-	# we're down a directory, go back up
-	# actually, don't.  the opm.gz file is what we want to install here
-	# chdir File::Spec->updir;
+    # phase 4 - `install $dist_name-$version.opm.tar.gz`
+    # we're down a directory, go back up
+    # actually, don't.  the opm.gz file is what we want to install here
+    # chdir File::Spec->updir;
 
-	my $versioned_file = "$dist_name-$version.opm.tar.gz";
+    my $versioned_file = "$dist_name-$version.opm.tar.gz";
 
-	# we need the account info
-	my ($rc_file, $rc_data) = get_rc_file();
-	my $account = $rc_data->{default}->{github_account};
-	if (!$account) {
-		err "$rc_file: no \"github_account\" specified.\n";
-	}
-	
-    my $ctx = init_installation_ctx(0);
+    # we need the account info
+    my ($rc_file, $rc_data) = get_rc_file();
+    my $account = $rc_data->{default}->{github_account};
+    if (!$account) {
+        err "$rc_file: no \"github_account\" specified.\n";
+    }
 
-	# is it installed?
-	my $meta_file = File::Spec->catfile($ctx->{manifest_dir}, "$dist_name.meta");
+    my $ctx = init_installation_ctx(0);  # 0 = do not `$upgrade`
+
+    # is it installed?
+    my $meta_file = File::Spec->catfile($ctx->{manifest_dir}, "$dist_name.meta");
     my $remove_old;
     if (-f $meta_file) {
+    	# for `build-install`:
+    	#     *always* `remove_old` if the `meta_file` exists, regardless of version
+    	#     however, `get` will still need to compare version numbers
     	$remove_old = 1;
-	}
+    }
 
-
+	# package_ctx is needed to get the directories right for `install_distribution` 
     my $package_ctx_args = {
-    	"manifest_dir" => $ctx->{manifest_dir},
-    	"working_dir" => getcwd(),
-    	"account" => $account,
-    	"name" => $dist_name,
-    	"remove_old" => $remove_old,
+        "manifest_dir" => $ctx->{manifest_dir},
+        "working_dir" => getcwd(),
+        "account" => $account,
+        "name" => $dist_name,
+        "remove_old" => $remove_old,
     };
     my $package_ctx = init_package_ctx($package_ctx_args);
     install_distribution($ctx, $package_ctx, $versioned_file);
@@ -1439,14 +1441,14 @@ sub install_target ($$) {
         shell "rm -rf '$dist_dir'";
     }
 
-	my $package_ctx_args = {
-		"working_dir" => $cache_dir,
-		"cwd" => $cwd,
-		"manifest_dir" => $manifest_dir,
-		"account" => $account,
-		"name" => $name,
-		"remove_old" => $remove_old,
-	};
+    my $package_ctx_args = {
+        "working_dir" => $cache_dir,
+        "cwd" => $cwd,
+        "manifest_dir" => $manifest_dir,
+        "account" => $account,
+        "name" => $name,
+        "remove_old" => $remove_old,
+    };
     my $package_ctx = init_package_ctx($package_ctx_args);
     install_distribution($ctx, $package_ctx, $dist_file, );
     return;
@@ -1458,18 +1460,20 @@ SKIP_INSTALL:
 }
 
 
-sub install_distribution($$$){
-=pod
-installs a distribution file (.tar.gz)
+=begin comment
+`install_distribution`
+This installs a distribution file (.tar.gz)
+=end comment
 =cut
-	my ($ctx, $package_ctx, $distribution_file) = @_;
-	my $working_dir = $package_ctx->{working_dir};
-	my $account = $package_ctx->{account};
-	my $name = $package_ctx->{name};
+sub install_distribution($$$) {
+    my ($ctx, $package_ctx, $distribution_file) = @_;
+    my $working_dir = $package_ctx->{working_dir};
+    my $account = $package_ctx->{account};
+    my $name = $package_ctx->{name};
 
-	if (!-e $distribution_file){
-		err "the distribution was not found"
-	}
+    if (!-e $distribution_file){
+        err "the distribution was not found"
+    }
 
     (my $dist_dir = $distribution_file) =~ s/\.tar\.gz$//;
 
@@ -1876,7 +1880,7 @@ sub do_remove {
 
     my $deps = parse_deps(\@_, "(command-line argument)", 1);
 
-    my $ctx = init_installation_ctx(0);
+    my $ctx = init_installation_ctx(0);  # 0 = do not `$upgrade`
 
     for my $dep (@$deps) {
         my ($account, $name, $op, $ver) = @$dep;
@@ -2010,7 +2014,7 @@ sub do_upgrade {
         err "no packages specified for upgrade.\n";
     }
 
-    my $ctx = init_installation_ctx(1);
+    my $ctx = init_installation_ctx(1);  # 1 = `$upgrade`
     my $manifest_dir = $ctx->{manifest_dir};
 
     local $_;
@@ -2032,26 +2036,28 @@ sub do_upgrade {
     }
 }
 
-sub init_package_ctx ($){
-=pod
-The `package_ctx` is a scoped context object.
-It is used in parallel to the `installation_ctx`.
-=cut
-	my $defaults = shift;
-	my $package_ctx = {
-		cwd => $defaults->{cwd} // cwd,
-		getcwd => $defaults->{getcwd} // getcwd(),
-		working_dir => $defaults->{working_dir} // undef,  # install_target,
-		manifest_dir => $defaults->{manifest_dir} // undef,  # install_target, do_build_install
-		account => $defaults->{account} // undef,  # install_target, do_build_install
-		name => $defaults->{name} // undef,  # install_target
-		remove_old => $defaults->{remove_old} // undef,  # install_target
-	};
-	return $package_ctx;
+sub init_package_ctx ($) {
+	# The `package_ctx` is a scoped context object.
+	# It is used in parallel to the `installation_ctx`.
+	# * `working_dir` should be the cache_dir (get) or the local dir (build-install)
+    my $defaults = shift;
+    my $package_ctx = {
+        cwd => $defaults->{cwd} // cwd,
+        getcwd => $defaults->{getcwd} // getcwd(),
+        working_dir => $defaults->{working_dir} // undef,  # install_target,
+        manifest_dir => $defaults->{manifest_dir} // undef,  # install_target, do_build_install
+        account => $defaults->{account} // undef,  # install_target, do_build_install
+        name => $defaults->{name} // undef,  # install_target
+        remove_old => $defaults->{remove_old} // undef,  # install_target
+    };
+    return $package_ctx;
 }
 
 
 sub init_installation_ctx ($) {
+	# Core installation context
+	# Single argument is boolean `$upgrade`
+	
     my $upgrade = shift;
 
     my ($rc_file, $rc_data) = get_rc_file();
@@ -2172,7 +2178,7 @@ sub do_update {
         return;
     }
 
-    my $ctx = init_installation_ctx(1);
+    my $ctx = init_installation_ctx(1);  # 1 = `$upgrade`
 
     opendir my $dh, $manifest_dir
         or err "failed to open directory $manifest_dir: $!\n";
@@ -2461,7 +2467,9 @@ Commands:
                         for uploading to the server.
 
     build-install       Build from the current working directory a package tarball ready
-                        for uploading to the server, and install locally.
+                        for uploading to the server, verify the build with `server-build`,
+                        and finally install the package locally -- all without
+                        communicating with the server.
 
     clean ARGUMENT...   Do clean-up work. Currently the valid argument is "dist", which
                         cleans up the temporary files and directories created by the "build"

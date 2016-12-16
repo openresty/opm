@@ -188,6 +188,11 @@ Commands:
     build               Build from the current working directory a package tarball ready
                         for uploading to the server.
 
+    build-install       Build from the current working directory a package tarball ready
+                        for uploading to the server, verify the build with `server-build`,
+                        and finally install the package locally -- all without
+                        communicating with the server.
+
     clean ARGUMENT...   Do clean-up work. Currently the valid argument is "dist", which
                         cleans up the temporary files and directories created by the "build"
                         command.
@@ -245,7 +250,8 @@ Author Workflow
 
 The package author should put a meta-data file named `dist.ini` on the top-level of the Lua library source tree.
 This file is used by the `opm build` command to build and package up your library into a tarball file which can be
-later uploaded to the central package server via the `opm upload` command.
+later uploaded to the central package server via the `opm upload` command. During development, the author can use
+the `opm build-install` functionality to test the installation process locally.
 
 One example `dist.ini` file looks like below for OpenResty's
 [lua-resty-core](https://github.com/openresty/lua-resty-core) library:
