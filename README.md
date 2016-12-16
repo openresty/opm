@@ -11,6 +11,7 @@ Table of Contents
 * [Synopsis](#synopsis)
 * [Description](#description)
 * [Usage](#usage)
+* [HTTP Proxy Support](#http-proxy-support)
 * [Author Workflow](#author-workflow)
 * [File dist.ini](#file-distini)
     * [name](#name)
@@ -220,6 +221,21 @@ Commands:
 
     upload              Upload the package tarball to the server. This command always invokes
                         the build command automatically right before uploading.
+```
+
+[Back to TOC](#table-of-contents)
+
+HTTP Proxy Support
+==================
+
+HTTP proxies are supported via the `http_proxy` and `https_proxy` system environment variables, as in
+
+```
+http_proxy [protocol://]<host>[:port]
+	  Sets the proxy server to use for HTTP.
+
+https_proxy [protocol://]<host>[:port]
+	  Sets the proxy server to use for HTTPS.
 ```
 
 [Back to TOC](#table-of-contents)

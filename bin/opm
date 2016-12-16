@@ -73,6 +73,7 @@ sub test_version_spec ($$$$$);
 sub check_utf8_field ($$$);
 sub check_user_file_path ($$$$);
 sub rebase_path ($$$);
+sub trim_curl_out ($);
 
 GetOptions("h|help",          \(my $help),
            "cwd",             \(my $install_into_cwd),
@@ -1189,6 +1190,8 @@ sub install_target ($$) {
 
     my $cmd = qq/curl -sS -i -A '$UserAgent' '$url'/;
     my $out = `$cmd`;
+    $out = trim_curl_out $out;
+
     if ($? != 0) {
         err "failed to run command \"$cmd\"\n";
     }
@@ -1300,14 +1303,22 @@ sub install_target ($$) {
     open $in, $header_file or
         err "failed to open $header_file for reading: $!\n";
 
-    $status_line = <$in>;
-    if ($status_line !~ m{^ HTTP/\d+\.\d+ \s+ (\d+) \b }x) {
+    undef $status_line;
+    {
+        my $out = do { local $/; <$in> };
+        close $in or err "failed to close file $header_file: $!";
+
+        $out = trim_curl_out $out;
+        if ($out =~ /\A([^\n]*)/) {
+            $status_line = $1;
+        }
+    }
+
+    if (!defined $status_line || $status_line !~ m{^ HTTP/\d+\.\d+ \s+ (\d+) \b }x) {
         err "bad response status line received from server for URL \"$url\".\n";
     }
 
     $status = $1;
-
-    close $in or err "failed to close file $header_file: $!";
 
     #warn $status;
     if ($status ne '200') {
@@ -2095,6 +2106,8 @@ sub do_search {
 
     my $url = "$download_url/api/pkg/search?q=$escaped_query";
     my $out = `curl -i -sS '$url' 2>&1`;
+    $out = trim_curl_out $out;
+
     my $status;
     if ($? == 0 && $out =~ m{^ HTTP/1\.\d \s+ (\d+) \b}ix) {
         $status = $1;
@@ -2122,6 +2135,8 @@ sub search_pkg_name ($$) {
 
     my $url = "$download_url/api/pkg/search/name?q=$name";
     my $out = `curl -i -sS '$url' 2>&1`;
+    $out = trim_curl_out $out;
+
     my $status;
     if ($? == 0 && $out =~ m{^ HTTP/1\.\d \s+ (\d+) \b}ix) {
         $status = $1;
@@ -2281,6 +2296,16 @@ sub is_valid_dist_name ($$) {
     {
         err "$dist_file: bad dist name: $dist_name\n";
     }
+}
+
+sub trim_curl_out ($) {
+    my $s = shift;
+
+    if (defined $s) {
+        $s =~ s{\AHTTP/1\.1 200 Connection established\r\n.*?\r\n\r\n}{}msi;
+    }
+
+    $s;
 }
 
 sub usage {
