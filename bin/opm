@@ -182,10 +182,13 @@ sub do_get {
 
 
 =begin comment
-	`do_build($)`
-	The first argument indicates the build type should be a server build
-	`$is_server_build` should just be a "truthy" value (1 vs 0)
+
+    `do_build($)`
+    The first argument indicates the build type should be a server build
+    `$is_server_build` should just be a "truthy" value (1 vs 0)
+
 =end comment
+
 =cut
 
 sub do_build ($) {
@@ -677,10 +680,12 @@ _EOC_
     #}
 
     warn "build successful: '$TarBall'\n";
+
 }
 
 
 =begin comment
+
 `do_build_install()`
 This builds the currently authored package, then installs it locally (without
 communicated with the opm server).
@@ -690,9 +695,16 @@ It performs these functions:
     cd $dist_name-$version/
     opm server-build
     install $dist_name-$version.opm.tar.gz  # psuedocode
+
 =end comment
+
 =cut
+
 sub do_build_install () {
+
+	# note the directory we started in before we `chdir` anywhere
+    my $start_dir = cwd();
+
     # phase 1 - `opm build`
     do_build(0);  # 0 = normal
 
@@ -706,7 +718,8 @@ sub do_build_install () {
 
     # phase 2b - `cd `
     my $versioned_directory = "$dist_name-$version";
-    chdir $versioned_directory;
+    chdir $versioned_directory
+        or err "could not chdir to `$versioned_directory`\n";
 
     # phase 3 - `opm server-build`
     shell "opm server-build";
@@ -731,21 +744,23 @@ sub do_build_install () {
     my $meta_file = File::Spec->catfile($ctx->{manifest_dir}, "$dist_name.meta");
     my $remove_old;
     if (-f $meta_file) {
-    	# for `build-install`:
-    	#     *always* `remove_old` if the `meta_file` exists, regardless of version
-    	#     however, `get` will still need to compare version numbers
-    	$remove_old = 1;
+        # for `build-install`:
+        #     *always* `remove_old` if the `meta_file` exists, regardless of version
+        #     however, `get` will still need to compare version numbers
+        $remove_old = 1;
     }
 
-	# package_ctx is needed to get the directories right for `install_distribution` 
+    # package_ctx is needed to get the directories right for `install_distribution`
     my $package_ctx_args = {
         "manifest_dir" => $ctx->{manifest_dir},
         "working_dir" => getcwd(),
+        "start_dir" => $start_dir,
         "account" => $account,
         "name" => $dist_name,
         "remove_old" => $remove_old,
     };
     my $package_ctx = init_package_ctx($package_ctx_args);
+
     install_distribution($ctx, $package_ctx, $versioned_file);
 }
 
@@ -1414,7 +1429,9 @@ sub install_target ($$) {
         err "$dist_file_path not found.\n";
     }
 
-    my $cwd = cwd;
+	# note the directory we started in before we `chdir` anywhere
+	my $start_dir = cwd();
+
     chdir $cache_subdir
         or err "cannot chdir to $cache_subdir: $!\n";
 
@@ -1443,7 +1460,7 @@ sub install_target ($$) {
 
     my $package_ctx_args = {
         "working_dir" => $cache_dir,
-        "cwd" => $cwd,
+        "start_dir" => $start_dir,
         "manifest_dir" => $manifest_dir,
         "account" => $account,
         "name" => $name,
@@ -1461,11 +1478,15 @@ SKIP_INSTALL:
 
 
 =begin comment
+
 `install_distribution`
 This installs a distribution file (.tar.gz)
+
 =end comment
+
 =cut
-sub install_distribution($$$) {
+
+sub install_distribution ($$$) {
     my ($ctx, $package_ctx, $distribution_file) = @_;
     my $working_dir = $package_ctx->{working_dir};
     my $account = $package_ctx->{account};
@@ -1485,6 +1506,8 @@ sub install_distribution($$$) {
 
     chdir $dist_dir
         or err "cannot chdir to $working_dir/$dist_dir: $!\n";
+
+    my $dist_dir_full = getcwd();
 
     # read dist.ini
 
@@ -1573,16 +1596,16 @@ sub install_distribution($$$) {
 
     for my $spec (@lua_files) {
         my ($src, $dst) = @$spec;
-
-        install_file($src, $dst, $lualib_dir);
+        my $src_path = File::Spec->catfile($dist_dir_full, $src);
+        install_file($src_path, $dst, $lualib_dir);
     }
 
     my $pod_dir = $ctx->{pod_dir} or die;
 
     for my $spec (@pod_files) {
         my ($src, $dst) = @$spec;
-
-        install_file($src, $dst, $pod_dir);
+        my $src_path = File::Spec->catfile($dist_dir_full, $src);
+        install_file($src_path, $dst, $pod_dir);
     }
 
     my $list_file = File::Spec->catfile($package_ctx->{manifest_dir}, "$name.list");
@@ -1605,10 +1628,10 @@ sub install_distribution($$$) {
         close $out;
     }
 
-    install_file($ini_file, "$name.meta", $package_ctx->{manifest_dir});
+    my $src_path = File::Spec->catfile($dist_dir_full, $ini_file);
+    install_file($src_path, "$name.meta", $package_ctx->{manifest_dir});
 
     # install resty.index
-
     my $installed_restydoc_index = File::Spec->catfile($install_dir, "resty.index");
 
     {
@@ -1634,8 +1657,8 @@ sub install_distribution($$$) {
     warn "Package $account/$name $version installed successfully ",
          "under $install_dir/ .\n";
 
-    chdir $package_ctx->{cwd}
-        or err "cannot chdir to " . $package_ctx->{cwd} . ": $!\n";
+    chdir $package_ctx->{start_dir}
+        or err "cannot chdir to " . $package_ctx->{start_dir} . ": $!\n";
 
     return;
 }
@@ -1735,14 +1758,15 @@ sub cmp_version ($$) {
 sub remove_target ($$$) {
     my ($ctx, $name, $account) = @_;
 
+	# note the directory we started in before we `chdir` anywhere
+    my $start_dir = cwd();
+
     my $install_dir = $ctx->{install_dir};
     if (!defined $install_dir) {
         err "cannot find OpenResty system installation directory.\n";
     }
 
     #warn $install_dir;
-
-    my $cwd = cwd;
     chdir $install_dir or err "cannot chdir to $install_dir: $!\n";
 
     my $manifest_dir = "manifest";
@@ -1870,7 +1894,7 @@ sub remove_target ($$$) {
 
     warn "Package $account/$name $version removed successfully.\n";
 
-    chdir $cwd or err "cannot chdir to $install_dir";
+    chdir $start_dir or err "cannot chdir back to start: $start_dir";
 }
 
 sub do_remove {
@@ -2037,13 +2061,13 @@ sub do_upgrade {
 }
 
 sub init_package_ctx ($) {
-	# The `package_ctx` is a scoped context object.
-	# It is used in parallel to the `installation_ctx`.
-	# * `working_dir` should be the cache_dir (get) or the local dir (build-install)
+    # The `package_ctx` is a scoped context object.
+    # It is used in parallel to the `installation_ctx`.
+    # * `working_dir` should be the cache_dir (get) or the local dir (build-install)
     my $defaults = shift;
     my $package_ctx = {
-        cwd => $defaults->{cwd} // cwd,
         getcwd => $defaults->{getcwd} // getcwd(),
+        start_dir => $defaults->{start_dir} // undef,  # used throughout
         working_dir => $defaults->{working_dir} // undef,  # install_target,
         manifest_dir => $defaults->{manifest_dir} // undef,  # install_target, do_build_install
         account => $defaults->{account} // undef,  # install_target, do_build_install
@@ -2055,9 +2079,9 @@ sub init_package_ctx ($) {
 
 
 sub init_installation_ctx ($) {
-	# Core installation context
-	# Single argument is boolean `$upgrade`
-	
+    # Core installation context
+    # Single argument is boolean `$upgrade`
+
     my $upgrade = shift;
 
     my ($rc_file, $rc_data) = get_rc_file();
