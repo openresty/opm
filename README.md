@@ -774,8 +774,8 @@ Installation
 For opm
 -------
 
-The next OpenResty release (*after* `1.11.2.1`) will include and install `opm` by default. So usually
-you do not need to install `opm` yourself.
+[OpenResty releases](https://openresty.org/en/download.html) since `1.11.2.2` already include and
+install `opm` by default. So usually you do *not* need to install `opm` yourself.
 
 If you really want to update to the latest version of
 `opm` in the code repository, then just copy the file `bin/opm` in the repository over to
