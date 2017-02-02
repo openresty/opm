@@ -279,7 +279,7 @@ sub do_build ($) {
 
         my $user = $1;
         my $proj = $2;
-        if ($proj ne $dist_name) {
+        if ($proj !~ /\Q$dist_name\E/i && $dist_name !~ /\Q$proj\E/i) {
             err "$dist_file: project \"$proj\" in repo_link ",
                 "\"$repo_link\" does not match name \"$dist_name\".\n";
         }
