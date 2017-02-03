@@ -1873,6 +1873,8 @@ sub do_info {
             $i++;
         }
 
+        $default_sec->{requires} =  "" if not defined $default_sec->{requires};
+
         print <<_EOC_;
 Name             : $name
 Version          : $ini_default_sec->{version}
