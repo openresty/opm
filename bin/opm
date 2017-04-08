@@ -20,7 +20,7 @@ use Getopt::Long qw( GetOptions :config no_ignore_case require_order);
 #use Data::Dumper qw( Dumper );
 
 my $MAX_DEPS = 100;
-my $Version = '0.0.1';
+my $Version = '0.0.3';
 
 my ($TarBall, $RepoLink, $RepoLinkUser, @Licenses, $LuaJIT, $LockFile);
 

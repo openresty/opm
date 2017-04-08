@@ -47,7 +47,7 @@ cjson.encode_empty_table_as_object(false)
 
 
 local _M = {
-    version = "0.0.1"
+    version = "0.0.3"
 }
 
 
