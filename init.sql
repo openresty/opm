@@ -1,3 +1,4 @@
+-- the following commented commands should be run by a super user of postgres:
 -- create user opm with password 'buildecosystem';
 -- create database opm;
 -- grant all privileges on database opm to opm;
