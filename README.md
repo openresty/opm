@@ -261,10 +261,10 @@ resty_modules/
 ```
 
 Alternatively, if you just want to use the `resty` command line utility with the opm modules installed
-into the `./resty_modules` directory, then you should just use the `-I .` option, as in
+into the `./resty_modules` directory, then you should just use the `-I ./resty_modules` option, as in
 
 ```bash
-resty -I . -e 'require "foo.bar".go()'
+resty -I ./resty_modules -e 'require "foo.bar".go()'
 ```
 
 [Back to TOC](#table-of-contents)
