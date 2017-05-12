@@ -245,6 +245,11 @@ lua_package_path "$prefix/resty_modules/lualib/?.lua;;";
 lua_package_cpath "$prefix/resty_modules/lualib/?.so;;";
 ```
 
+Do NOT change `$prefix` to a hard-coded absolute path yourself! OpenResty will automatically resolve the
+special `$prefix` variable in the directive values at startup. The `$prefix` value will be resolved
+to the server prefix, which will later be specified via the `-p` option of the `openresty` command
+line.
+
 And then you should start your OpenResty application from the current working directory like this:
 
 ```bash
