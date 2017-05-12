@@ -241,8 +241,8 @@ When you use `--cwd` option to install packages to the `./resty_modules/` direct
 put the following lines to your `nginx.conf`, inside the `http {}` block:
 
 ```nginx
-lua_package_path "$prefix/resty_modules/?.lua;;";
-lua_package_cpath "$prefix/resty_modules/?.so;;";
+lua_package_path "$prefix/resty_modules/lualib/?.lua;;";
+lua_package_cpath "$prefix/resty_modules/lualib/?.so;;";
 ```
 
 And then you should start your OpenResty application from the current working directory like this:
@@ -261,10 +261,10 @@ resty_modules/
 ```
 
 Alternatively, if you just want to use the `resty` command line utility with the opm modules installed
-into the `./resty_modules` directory, then you should just use the `-I ./resty_modules` option, as in
+into the `./resty_modules` directory, then you should just use the `-I ./resty_modules/lualib` option, as in
 
 ```bash
-resty -I ./resty_modules -e 'require "foo.bar".go()'
+resty -I ./resty_modules/lualib -e 'require "foo.bar".go()'
 ```
 
 [Back to TOC](#table-of-contents)
