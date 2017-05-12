@@ -11,6 +11,8 @@ Table of Contents
 * [Synopsis](#synopsis)
 * [Description](#description)
 * [Usage](#usage)
+    * [Global Installation](#global-installation)
+    * [Local Installation](#local-installation)
 * [HTTP Proxy Support](#http-proxy-support)
 * [Author Workflow](#author-workflow)
 * [File dist.ini](#file-distini)
@@ -221,6 +223,48 @@ Commands:
 
     upload              Upload the package tarball to the server. This command always invokes
                         the build command automatically right before uploading.
+```
+
+[Back to TOC](#table-of-contents)
+
+Global Installation
+-------------------
+
+To globally install opm packages, just use the `sudo opm get foo/bar` command.
+
+[Back to TOC](#table-of-contents)
+
+Local Installation
+------------------
+
+When you use `--cwd` option to install packages to the `./resty_modules/` directory, then you should
+put the following lines to your `nginx.conf`, inside the `http {}` block:
+
+```nginx
+lua_package_path "$prefix/resty_modules/?.lua;;";
+lua_package_cpath "$prefix/resty_modules/?.so;;";
+```
+
+And then you should start your OpenResty application from the current working directory like this:
+
+```bash
+openresty -p $PWD/
+```
+
+assuming you have the following OpenResty application directory layout in the current directory:
+
+```
+logs/
+conf/
+conf/nginx.conf
+resty_modules/
+```
+
+Alternatively, if you just want to use the `resty` command line utility with the opm modules installed
+into the `./resty_modules` directory, then you should just use the `-I .` option, as in
+
+```bash
+resty -I . -e 'require "foo.bar".go()'
 ```
 
 [Back to TOC](#table-of-contents)
