@@ -300,7 +300,7 @@ sub do_build ($) {
 
     if (!$server_build) {
         my $out = `curl -sS -I $repo_link 2>&1`;
-        if ($out =~ m{^ HTTP/1\.\d \s+ (\d+) \b}ix) {
+        if ($out =~ m{^ HTTP/\d+(?:\.\d+)? \s+ (\d+) \b}ix) {
             my $status = $1;
             if ($status >= 400) {
                 err "$dist_file: bad repo_link $repo_link: ",
@@ -1206,7 +1206,7 @@ sub install_target ($$) {
 
     open my $in, "<", \$out or die $!;
     my $status_line = <$in>;
-    if ($status_line !~ m{^ HTTP/\d+\.\d+ \s+ (\d+) \b }x) {
+    if ($status_line !~ m{^ HTTP/\d+(?:\.\d+)? \s+ (\d+) \b }x) {
         err "bad response status line received from server for URL \"$url\": $status_line\n";
     }
 
@@ -1314,7 +1314,7 @@ sub install_target ($$) {
         }
     }
 
-    if (!defined $status_line || $status_line !~ m{^ HTTP/\d+\.\d+ \s+ (\d+) \b }x) {
+    if (!defined $status_line || $status_line !~ m{^ HTTP/\d+(?:\.\d+)? \s+ (\d+) \b }x) {
         err "bad response status line received from server for URL \"$url\": $status_line\n";
     }
 
@@ -2109,7 +2109,7 @@ sub do_search {
     $out = trim_curl_out $out;
 
     my $status;
-    if ($? == 0 && $out =~ m{^ HTTP/1\.\d \s+ (\d+) \b}ix) {
+    if ($? == 0 && $out =~ m{^ HTTP/\d+(?:\.\d+)? \s+ (\d+) \b}ix) {
         $status = $1;
 
     } else {
@@ -2138,7 +2138,7 @@ sub search_pkg_name ($$) {
     $out = trim_curl_out $out;
 
     my $status;
-    if ($? == 0 && $out =~ m{^ HTTP/1\.\d \s+ (\d+) \b}ix) {
+    if ($? == 0 && $out =~ m{^ HTTP/\d+(?:\.\d+)? \s+ (\d+) \b}ix) {
         $status = $1;
 
     } else {
@@ -2302,7 +2302,7 @@ sub trim_curl_out ($) {
     my $s = shift;
 
     if (defined $s) {
-        $s =~ s{\AHTTP/1\.1 200 Connection established\r\n.*?\r\n\r\n}{}msi;
+        $s =~ s{\AHTTP/\d+(?:\.\d+)? 200 Connection established\r\n.*?\r\n\r\n}{}msi;
     }
 
     $s;
