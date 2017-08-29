@@ -1207,7 +1207,7 @@ sub install_target ($$) {
     open my $in, "<", \$out or die $!;
     my $status_line = <$in>;
     if ($status_line !~ m{^ HTTP/\d+\.\d+ \s+ (\d+) \b }x) {
-        err "bad response status line received from server for URL \"$url\".\n";
+        err "bad response status line received from server for URL \"$url\": $status_line\n";
     }
 
     my $status = $1;
@@ -1315,7 +1315,7 @@ sub install_target ($$) {
     }
 
     if (!defined $status_line || $status_line !~ m{^ HTTP/\d+\.\d+ \s+ (\d+) \b }x) {
-        err "bad response status line received from server for URL \"$url\".\n";
+        err "bad response status line received from server for URL \"$url\": $status_line\n";
     }
 
     $status = $1;
