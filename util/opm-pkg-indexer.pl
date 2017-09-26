@@ -29,7 +29,7 @@ sub err_log;
 
 my $json_xs = JSON::XS->new;
 
-my $version = '0.0.3';
+my $version = '0.0.4';
 
 my %opts;
 getopts("di:", \%opts) or die;
