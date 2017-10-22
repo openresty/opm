@@ -37,8 +37,8 @@ local tab_concat = table.concat
 local shdict_bad_users = ngx.shared.bad_users
 
 
-local incoming_directory = "/tmp/incoming"
-local final_directory = "/tmp/final"
+local incoming_directory = "/opm/incoming"
+local final_directory = "/opm/final"
 
 local MIN_TARBALL_SIZE = 136
 

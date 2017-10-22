@@ -39,8 +39,8 @@ my $iterations = $opts{i} || 0;  # 0 means infinite
 
 my $api_server_host = shift || "127.0.0.1";
 my $api_server_port = shift || 8080;
-my $failed_dir = shift || "/tmp/failed";
-my $original_dir = shift || "/tmp/original";
+my $failed_dir = shift || "/opm/failed";
+my $original_dir = shift || "/opm/original";
 
 my $SpecialDepPat = qr/^(?:openresty|luajit|ngx_(?:http_)?lua|nginx)$/;
 
