@@ -2302,7 +2302,7 @@ sub trim_curl_out ($) {
     my $s = shift;
 
     if (defined $s) {
-        $s =~ s{\AHTTP/\d+(?:\.\d+)? 200 Connection established\r\n.*?\r\n\r\n}{}msi;
+        $s =~ s{\AHTTP/\d+(?:\.\d+)? 200 Connection established.*?\r\n\r\n}{}msi;
     }
 
     $s;
