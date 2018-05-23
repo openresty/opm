@@ -19,6 +19,7 @@ local send_email = email.send_mail
 local re_find = ngx.re.find
 local re_match = ngx.re.match
 local str_find = string.find
+local str_format = string.format
 local ngx_var = ngx.var
 local say = ngx.say
 local req_read_body = ngx.req.read_body
@@ -27,8 +28,6 @@ local encode_json = cjson.encode
 local req_method = ngx.req.get_method
 local req_body_file = ngx.req.get_body_file
 local os_exec = os.execute
-local io_open = io.open
-local io_close = io.close
 local set_quote_sql_str = ndk.set_var.set_quote_pgsql_str
 local assert = assert
 local sub = string.sub
@@ -360,6 +359,13 @@ function _M.do_upload()
         end
     end
 
+    -- get the repository's information
+    local stargazers_count
+    do
+      local repo_info = query_github_repository(ctx, pkg_name)
+      stargazers_count = repo_info.stargazers_count
+    end
+
     do
         req_read_body()
 
@@ -385,7 +391,8 @@ function _M.do_upload()
     -- insert the new uploaded task to the uplaods database.
 
     local sql1 = "insert into uploads (uploader, size, package_name, "
-                 .. "orig_checksum, version_v, version_s, client_addr"
+                 .. "orig_checksum, version_v, version_s, client_addr, "
+                 .. "stargazers_count"
 
     local sql2 = ""
     if login ~= account then
@@ -398,6 +405,7 @@ function _M.do_upload()
                  .. ", " .. ver_v
                  .. ", " .. quote_sql_str(pkg_version)
                  .. ", " .. quote_sql_str(ngx_var.remote_addr)
+                 .. ", " .. quote_sql_str(stargazers_count)
 
     local sql4
     if login ~= account then
@@ -516,7 +524,6 @@ function query_github_user(ctx, token)
     end
 
     -- query github
-
     local path = "/user"
     local res = query_github(ctx, path)
 
@@ -552,6 +559,73 @@ function query_github_user(ctx, token)
         return log_and_out_err(ctx, 502,
                                "login name cannot found in the ",
                                "github /user API call: ", json)
+    end
+
+    return data, scopes
+end
+
+
+function query_github_repository(ctx, repository)
+    -- limit github accesses globally
+    local zone = "global_github_limit"
+    local lim, err = limit_req.new(zone, 1, 5)
+    if not lim then
+        return log_and_out_err(ctx, 500, "failed to new resty.limit.req: ", err)
+    end
+
+    local delay, err = lim:incoming("github", true)
+    if not delay then
+        if err == "rejected" then
+            return log_and_out_err(ctx, 503, "server too busy");
+        end
+        return log_and_out_err(ctx, 500, "failed to limit req: ", err)
+    end
+
+    if delay >= 0.001 then
+        local excess = err
+        ngx.log(ngx.WARN, "delaying github request, excess: ", excess,
+                " by zone ", zone)
+        ngx.sleep(delay)
+    end
+
+    -- "/repos/{owner}/{repo}"
+    local account = ctx.account
+    local path = "/repos/" .. account .. "/" .. repository
+
+    local res = query_github(ctx, path)
+
+    local scopes = res.headers["X-OAuth-Scopes"]
+
+    if not scopes or not str_find(scopes, "user:email", nil, true) then
+        return log_and_out_err(ctx, 403,
+                               "personal access token lacking ",
+                               "the user:email scope: ", scopes)
+    end
+
+    if #scopes > #"read:org, user:email" then
+        return log_and_out_err(ctx, 403,
+                               "personal access token is too permissive; ",
+                               "only the scopes user:email and read:org ",
+                               "should be allowed.")
+    end
+
+    -- say(cjson.encode(res.headers))
+
+    local json = res.body
+
+    -- say("user json: ", json)
+
+    local data, err = decode_json(json)
+    if not data then
+        return log_and_out_err(ctx, 502, "failed to parse repos json: ",
+                               err, " (", json, ")")
+    end
+
+    local login = data.owner.login
+    if not login then
+        return log_and_out_err(ctx, 502,
+                               "login name cannot found in the ",
+                               "github /repos API call: ", json)
     end
 
     return data, scopes
@@ -774,8 +848,9 @@ do
                 goto continue
             end
 
-            break
-
+            do
+              break
+            end
             ::continue::
         end
 
@@ -1464,9 +1539,11 @@ do
 
         local sql = "select abstract, package_name, orgs.login as org_name"
                     .. ", users.login as uploader_name"
+                    .. ", tmp.stargazers_count as stargazers_count"
                     .. " from (select last(abstract) as abstract"
                     .. ", package_name, org_account, uploader"
                     .. ", ts_rank_cd(last(ts_idx), last(q), 1) as rank"
+                    .. ", max(stargazers_count) as stargazers_count"
                     .. " from uploads, plainto_tsquery("
                     .. quote_sql_str(query) .. ") q"
                     .. " where indexed = true and ts_idx @@ q"
@@ -1486,11 +1563,16 @@ do
 
         tab_clear(results)
 
-        local i = 0
+        local i = 1
+        local show_pattern = "%-40s  %6s  %s\n"
+        results[i] = str_format(show_pattern,
+                    "NAME", "STARS", "DESCRIPTION")
+
         for _, row in ipairs(rows) do
             local uploader = row.uploader_name
             local org = row.org_name
             local pkg = row.package_name
+            local star = tostring(row.stargazers_count or "")
 
             local account
             if org and org ~= ngx_null then
@@ -1501,30 +1583,8 @@ do
             end
 
             i = i + 1
-            results[i] = account
-
-            i = i + 1
-            results[i] = "/"
-
-            i = i + 1
-            results[i] = pkg
-
-            local len = #account + #pkg + 1
-
-            if len < 50 then
-                len = 50 - len
-            else
-                len = 4
-            end
-
-            i = i + 1
-            results[i] = str_rep(" ", len)
-
-            i = i + 1
-            results[i] = row.abstract
-
-            i = i + 1
-            results[i] = "\n"
+            results[i] = str_format(show_pattern,
+                    account .. "/" .. pkg, star, row.abstract)
         end
 
         ngx_print(results)

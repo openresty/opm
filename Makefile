@@ -68,3 +68,7 @@ clean:
 .PHONY: initdb
 initdb: $(tsv_files)
 	psql -Uopm opm -f init.sql
+
+.PHONY: update
+update: $(tsv_files)
+	psql -Uopm opm -f update.sql
