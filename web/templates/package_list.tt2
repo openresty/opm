@@ -1,0 +1,45 @@
+
+<ul class="package_list">
+
+[%- FOREACH row IN packages %]
+<li class="package_row">
+
+    [% uploader = row.uploader_name;
+       org = row.org_name;
+       account = uploader;
+       IF org;
+        account = org;
+       END %]
+
+    <div class="main">
+        <a href="[% row.repo_link %]" class="title">
+            [% account _ "/" _ row.package_name %]
+        </a>
+        <span class="version_name">
+            [% row.version_s | html %]
+        </span>
+        [%- IF row.indexed %]
+
+        [%- ELSIF row.failed %]
+        <span class="failed">Failed</span>
+        [%- ELSE %]
+        <span class="pending">Pending</span>
+        [%- END %]
+        <span class="author">
+            by 
+            <a href="https://github.com/[% uploader | html %]/">
+                [% uploader | html %]
+            </a>
+        </span>
+    </div>
+    <div class="summary">
+        [% row.abstract %]
+        <span class="updated_at">
+            [% row.upload_updated_at | html %]
+        </span>
+    </div>
+</li>
+[%- END %]
+</ul>
+
+[% page_info %]

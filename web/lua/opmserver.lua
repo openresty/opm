@@ -13,12 +13,16 @@ local tab_clear = require "table.clear"
 local limit_req = require "resty.limit.req"
 local templates = require "opmserver.templates"
 local email = require "opmserver.email"
+local paginator = require "opmserver.paginator"
+local view = require "opmserver.view"
 local send_email = email.send_mail
 
 
 local re_find = ngx.re.find
 local re_match = ngx.re.match
+local re_gsub = ngx.re.gsub
 local str_find = string.find
+local str_len = string.len
 local ngx_var = ngx.var
 local say = ngx.say
 local req_read_body = ngx.req.read_body
@@ -1616,23 +1620,49 @@ do
     end
 end
 
+local default_page_size = 10
+
+local function get_req_param(param_name, default, type_convert)
+
+    local unescape_uri = ngx.unescape_uri
+    local param = unescape_uri(ngx_var['arg_' .. param_name])
+    if type_convert then
+        param = type_convert(param)
+    end
+    param = param or default
+
+    return param
+end
+
+local routes = {
+    index = 'do_index_page',
+    search = 'do_search_page',
+    packages = 'do_packages_page',
+    uploads = 'do_uploads_page'
+}
+
+function _M.do_web()
+
+    local uri = ngx.var.uri .. '/'
+
+    local paths = re_match(uri, [[\/(\w+)?\/]], 'jo')
+    local path = paths[1] or 'index'
+    local action = routes[path]
+    action = _M[action]
+
+    if not action then
+        action = _M.do_404_page
+    end
+
+    return action()
+end
 
 function _M.do_index_page()
-    local sql = [[select package_name, version_s, abstract, indexed]]
-                .. [[, failed, users.login as uploader_name]]
-                .. [[, orgs.login as org_name, repo_link]]
-                .. [[, uploads.created_at as created_at]]
-                .. [[ from uploads]]
-                .. [[ left join users on uploads.uploader = users.id]]
-                .. [[ left join orgs on uploads.org_account = orgs.id]]
-                .. [[ order by uploads.updated_at desc limit 1000]]
 
-    local recent_uploads = query_db(sql)
-
-    sql = [[select count(*) as total,
-count(distinct uploader) as uploaders,
-count(distinct package_name) as pkg_count
-from uploads where indexed = true]]
+    local sql = [[select count(*) as total,
+            count(distinct uploader) as uploaders,
+            count(distinct package_name) as pkg_count
+            from uploads where indexed = true]]
 
     local rows = query_db(sql)
     assert(#rows == 1)
@@ -1642,14 +1672,175 @@ from uploads where indexed = true]]
     local uploader_count = row.uploaders
     local pkg_count = row.pkg_count
 
-    local html = templates.process("index.tt2", {
-        recent_uploads = recent_uploads,
+    sql = [[select package_name, version_s, abstract, indexed, uploader,]]
+        .. [[ org_account, to_char(t.updated_at,'YYYY-MM-DD HH24:MI:SS')]]
+        .. [[ as upload_updated_at, users.login as uploader_name,]]
+        .. [[ orgs.login as org_name, repo_link]]
+        .. [[ from (select distinct on (package_name, uploader, org_account) *]]
+        .. [[ from uploads where indexed = true order by package_name) t]]
+        .. [[ left join users on t.uploader = users.id]]
+        .. [[ left join orgs on t.org_account = orgs.id]]
+        .. [[ order by upload_updated_at DESC limit 10]]
+
+    local recent_packages = query_db(sql)
+
+    view.show("index", {
         total_uploads = total_uploads,
         uploader_count = uploader_count,
         package_count = pkg_count,
+        packages = recent_packages
     })
-    say(html)
+
 end
 
+function _M.do_packages_page()
+
+    local curr_page = get_req_param('page', 1, tonumber)
+    local page_size = default_page_size
+
+    local sql = [[select count(distinct(package_name, uploader, org_account))]] 
+        ..  [[ as total_count from uploads where indexed = true]]
+
+    local rows = query_db(sql)
+    local row = rows[1]
+    local total_count = row.total_count
+
+    local packages, page_info
+
+    if total_count > 0 then
+        local limit, offset = paginator.paging(total_count, page_size, curr_page)
+        
+        sql = [[select package_name, version_s, abstract, indexed, uploader,]]
+            .. [[ org_account, to_char(t.updated_at,'YYYY-MM-DD HH24:MI:SS')]]
+            .. [[ as upload_updated_at, users.login as uploader_name,]]
+            .. [[ orgs.login as org_name, repo_link]]
+            .. [[ from (select distinct on (package_name, uploader, org_account) *]]
+            .. [[ from uploads where indexed = true order by package_name) t]]
+            .. [[ left join users on t.uploader = users.id]]
+            .. [[ left join orgs on t.org_account = orgs.id]]
+            .. [[ order by upload_updated_at DESC limit ]] .. limit 
+            .. [[ offset ]] .. offset
+
+        packages = query_db(sql)
+
+        page_info = paginator:new(ngx.var.request_uri, total_count,
+            page_size, curr_page):show()
+    end
+
+    view.show("packages", {
+        packages = packages,
+        page_info = page_info
+    })
+end
+
+function _M.do_uploads_page()
+
+    local curr_page = get_req_param('page', 1, tonumber)
+    local page_size = default_page_size
+
+    local sql = [[select count(id) as total_count from uploads]] 
+
+    local rows = query_db(sql)
+    local row = rows[1]
+    local total_count = row.total_count
+
+    local packages, page_info
+
+    if total_count > 0 then
+        local limit, offset = paginator.paging(total_count, page_size, curr_page)
+
+        local sql = [[select package_name, version_s, abstract, indexed]]
+            .. [[, failed, users.login as uploader_name]]
+            .. [[, orgs.login as org_name, repo_link]]
+            .. [[, to_char(uploads.created_at,'YYYY-MM-DD HH24:MI:SS') as upload_updated_at]]
+            .. [[ from uploads]]
+            .. [[ left join users on uploads.uploader = users.id]]
+            .. [[ left join orgs on uploads.org_account = orgs.id]]
+            .. [[ order by uploads.created_at desc limit ]] 
+            .. limit .. [[ offset ]] .. offset
+
+        packages = query_db(sql)
+
+        page_info = paginator:new(ngx.var.request_uri, total_count,
+            page_size, curr_page):show()
+
+    end
+
+    view.show("uploads", {
+        packages = packages,
+        page_info = page_info
+    })
+end
+
+function _M.do_search_page()
+
+    local query = get_req_param('q', '')
+    local curr_page = get_req_param('page', 1, tonumber)
+    local page_size = default_page_size
+
+    local search_results, page_info
+
+    if str_len(query) > 0 then
+        local total_count
+
+        local sql = "select count(id) as total_count"
+            .. " from uploads, plainto_tsquery("
+            .. quote_sql_str(query) .. ") q"
+            .. " where indexed = true and ts_idx @@ q"
+            .. " group by package_name, uploader, org_account"
+
+        local rows = query_db(sql)
+        total_count = #rows
+
+        if total_count > 0 then
+            local limit, offset = paginator.paging(total_count, page_size, curr_page)
+            local tsquery = "plainto_tsquery("
+                .. quote_sql_str(query) .. ")"
+
+            local sql = "select ts_headline(abstract, " .. tsquery 
+                .. ", 'MaxFragments=1') as abstract" 
+                .. ", ts_headline(package_name, " .. tsquery 
+                .. ", 'MaxFragments=1') as package_name" 
+                .. ", orgs.login as org_name"
+                .. ", users.login as uploader_name" 
+                .. ", to_char(upload_updated_at,'YYYY-MM-DD HH24:MI:SS') as upload_updated_at"
+                .. " from (select last(abstract) as abstract"
+                .. ", package_name, org_account, uploader, repo_link"
+                .. ", ts_rank_cd(last(ts_idx), last(q), 1) as rank"
+                .. ", max(updated_at) as upload_updated_at"
+                .. " from uploads, " .. tsquery .. " q"
+                .. " where indexed = true and ts_idx @@ q"
+                .. " group by package_name, uploader, org_account, repo_link"
+                .. " order by rank desc limit " .. limit
+                .. " offset " .. offset .. ") as tmp"
+                .. " left join users on tmp.uploader = users.id"
+                .. " left join orgs on tmp.org_account = orgs.id"
+
+            search_results = query_db(sql)
+            if search_results and #search_results > 0 then
+                for i, row in ipairs(search_results) do
+                    row.indexed = true
+                end
+            end
+            page_info = paginator:new(ngx.var.request_uri, total_count,
+                page_size, curr_page):show()
+
+        end
+    end
+
+    view.show("search", {
+        packages = search_results or {},
+        package_count = pkg_count or 0,
+        query_words = query or '',
+        page_info = page_info
+    })
+
+end
+
+function _M.do_404_page()
+
+    view.show("404")
+
+end
 
 return _M

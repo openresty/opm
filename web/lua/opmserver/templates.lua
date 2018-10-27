@@ -230,6 +230,34 @@ function _M.process(file, params)
     end
     return f(context)
 end
+-- 404.tt2
+template_map['404.tt2'] = function (context)
+    if not context then
+        return error("Lemplate function called without context\n")
+    end
+    local stash = context.stash
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = '\n<h2>\n404 not found!\n</h2>\n'
+
+    return output
+end
+
+-- analytics.tt2
+template_map['analytics.tt2'] = function (context)
+    if not context then
+        return error("Lemplate function called without context\n")
+    end
+    local stash = context.stash
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = '\n<script>\nvar ga_func = function () {\n    (function(i,s,o,g,r,a,m){i[\'GoogleAnalyticsObject\']=r;i[r]=i[r]||function(){\n        (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),\n    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)\n    })(window,document,\'script\',\'https://www.google-analytics.com/analytics.js\',\'ga\');\n\n    ga(\'create\', \'UA-24724965-2\', \'auto\');\n    ga(\'send\', \'pageview\');\n}\nsetTimeout(ga_func, 0);\n</script>\n'
+
+    return output
+end
+
 -- footer.tt2
 template_map['footer.tt2'] = function (context)
     if not context then
@@ -239,22 +267,22 @@ template_map['footer.tt2'] = function (context)
     local output = {}
     local i = 0
 
-i = i + 1 output[i] = '<div class="content-footer">\n<!-- <hr class="footer-sep"/> -->\n<div class="footer">\n  <p>'
--- line 4 "footer.tt2"
-i = i + 1 output[i] = 'Copyright © 2016, 2017 Yichun Zhang (agentzh)'
-i = i + 1 output[i] = '</p>\n  <p>'
--- line 5 "footer.tt2"
+i = i + 1 output[i] = '\n<p>'
+-- line 2 "footer.tt2"
+i = i + 1 output[i] = 'Copyright © 2016, 2017, 2018 Yichun Zhang (agentzh)'
+i = i + 1 output[i] = '</p>\n<p>'
+-- line 3 "footer.tt2"
 i = i + 1 output[i] = '100% Powered by OpenResty and PostgreSQL'
-i = i + 1 output[i] = '\n     '
--- line 6 "footer.tt2"
+i = i + 1 output[i] = '\n '
+-- line 4 "footer.tt2"
 i = i + 1 output[i] = '('
-i = i + 1 output[i] = '<a href="https://github.com/openresty/opm/">\n     '
--- line 7 "footer.tt2"
+i = i + 1 output[i] = '<a href="https://github.com/openresty/opm/">'
+-- line 4 "footer.tt2"
 i = i + 1 output[i] = 'view the source code of this site'
 i = i + 1 output[i] = '</a>'
--- line 7 "footer.tt2"
+-- line 4 "footer.tt2"
 i = i + 1 output[i] = ')'
-i = i + 1 output[i] = '</p>\n  <p>京ICP备16021991号</p>\n</div>\n</div>\n'
+i = i + 1 output[i] = '</p>\n<p>京ICP备16021991号</p>\n'
 
     return output
 end
@@ -268,21 +296,81 @@ template_map['index.tt2'] = function (context)
     local output = {}
     local i = 0
 
-i = i + 1 output[i] = '<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="utf-8">\n    <title>OPM - OpenResty Package Manager</title>\n    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=2.0, user-scalable=yes">\n    <link rel="stylesheet" type="text/css" href="/css/main.css">\n</head>\n<body>\n<h1>\n    <span>\n    <a href="https://openresty.org"><img src="https://openresty.org/images/logo.png" width="64"></a>\n    </span>\n    OPM - OpenResty Package Manager</h1>\n<div>\n    <h2>How to Use</h2>\n    <p>Please read the <a href="https://github.com/openresty/opm#readme">opm documentation</a> for more details.</p>\n    <h2>Recent Uploads</h2>\n    <p>We already have '
--- line 19 "index.tt2"
+i = i + 1 output[i] = '\n<div class="intro_banner">\n    <div class="intro_banner_inner">\n        <div class="intro_text">\n        <p><b>opm</b> is the official OpenResty package manager, similar to Perl\'s CPAN and NodeJS\'s npm in rationale.</p>\n        <p>We provide both the opm client-side command-line utility and the server-side application for the central package repository.</p>\n        <p>Please read the <a href="https://github.com/openresty/opm#readme">opm documentation</a> for more details.</p>\n        <p>We already have <b>'
+-- line 8 "index.tt2"
 i = i + 1 output[i] = stash_get(stash, 'total_uploads')
-i = i + 1 output[i] = ' successful uploads\n       across '
--- line 20 "index.tt2"
+i = i + 1 output[i] = '</b> successful uploads across <b>'
+-- line 8 "index.tt2"
 i = i + 1 output[i] = stash_get(stash, 'package_count')
-i = i + 1 output[i] = ' distinct package names from '
--- line 20 "index.tt2"
+i = i + 1 output[i] = '</b> distinct package names from <b>'
+-- line 8 "index.tt2"
 i = i + 1 output[i] = stash_get(stash, 'uploader_count')
-i = i + 1 output[i] = '\n       contributors. Come on, OPM authors!</p>\n    <table class="recent">\n    <tbody>'
--- line 56 "index.tt2"
+i = i + 1 output[i] = '</b> contributors. Come on, OPM authors!</p>\n        </div>\n    </div>\n</div>\n\n<div class="main_col">\n<div class="split_header">\n    <h2>Recent packages</h2>\n    <span class="header_sub">\n        (<a href="/packages">view all</a>)\n    </span>\n    <span class="right">\n        <a href="/uploads">Recent uploads</a>\n    </span>\n</div>\n\n<section>\n'
+-- line 25 "index.tt2"
+i = i + 1 output[i] = context.process(context, 'package_list.tt2')
+i = i + 1 output[i] = '\n</section>\n</div>\n'
+
+    return output
+end
+
+-- layout.tt2
+template_map['layout.tt2'] = function (context)
+    if not context then
+        return error("Lemplate function called without context\n")
+    end
+    local stash = context.stash
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = '<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="utf-8">\n    <title>OPM - OpenResty Package Manager</title>\n    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=2.0, user-scalable=yes">\n    <link rel="stylesheet" type="text/css" href="/css/main.css">\n</head>\n<body>\n    <div class="content">\n        <header class="header">\n        '
+-- line 12 "layout.tt2"
+i = i + 1 output[i] = context.process(context, 'nav.tt2')
+i = i + 1 output[i] = '\n        </header>\n\n        <main class="main_page">\n            '
+-- line 16 "layout.tt2"
+i = i + 1 output[i] = stash_get(stash, 'main_html')
+i = i + 1 output[i] = '\n        </main>\n    </div>\n\n    <div class="footer">\n    '
+-- line 21 "layout.tt2"
+i = i + 1 output[i] = context.process(context, 'footer.tt2')
+i = i + 1 output[i] = '\n    </div>\n\n</body>\n\n'
+-- line 26 "layout.tt2"
+i = i + 1 output[i] = context.process(context, 'analytics.tt2')
+i = i + 1 output[i] = '\n\n</html>\n'
+
+    return output
+end
+
+-- nav.tt2
+template_map['nav.tt2'] = function (context)
+    if not context then
+        return error("Lemplate function called without context\n")
+    end
+    local stash = context.stash
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = '\n<div class="header_inner">\n<a href="https://openresty.org">\n    <img src="https://openresty.org/images/logo.png" width="64">\n</a>\n<nav class="logo_panel">\n<a href="/">\n    OPM\n</a>\n</nav>\n\n<form method="GET" action="/search" class="header_search">\n    <input type="text" placeholder="Search Packages ..." name="q" value="'
+-- line 13 "nav.tt2"
+i = i + 1 output[i] = stash_get(stash, 'query_words')
+i = i + 1 output[i] = '">\n</form>\n<nav class="nav_panel">\n    <a href="/packages">Browse </a>\n\n</nav>\n</div>\n'
+
+    return output
+end
+
+-- package_list.tt2
+template_map['package_list.tt2'] = function (context)
+    if not context then
+        return error("Lemplate function called without context\n")
+    end
+    local stash = context.stash
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = '\n<ul class="package_list">\n'
+-- line 42 "package_list.tt2"
 
 -- FOREACH
 do
-    local list = stash_get(stash, 'recent_uploads')
+    local list = stash_get(stash, 'packages')
     local iterator
     if list.list then
         iterator = list
@@ -305,49 +393,27 @@ do
         iterator.count = idx
         iterator.next = list[idx + 1]
         stash['row'] = value
-i = i + 1 output[i] = '\n    <tr>\n        '
--- line 26 "index.tt2"
+i = i + 1 output[i] = '\n<li class="package_row">\n\n    '
+-- line 7 "package_list.tt2"
 stash_set(stash, 'uploader', stash_get(stash, {'row', 0, 'uploader_name', 0}));
--- line 26 "index.tt2"
+-- line 7 "package_list.tt2"
 stash_set(stash, 'org', stash_get(stash, {'row', 0, 'org_name', 0}));
--- line 26 "index.tt2"
+-- line 7 "package_list.tt2"
 stash_set(stash, 'account', stash_get(stash, 'uploader'));
--- line 26 "index.tt2"
+-- line 7 "package_list.tt2"
 if tt2_true(stash_get(stash, 'org')) then
--- line 26 "index.tt2"
+-- line 7 "package_list.tt2"
 stash_set(stash, 'account', stash_get(stash, 'org'));
 end
 
-i = i + 1 output[i] = '\n        <td>'
--- line 39 "index.tt2"
-if tt2_true(stash_get(stash, {'row', 0, 'indexed', 0})) then
-i = i + 1 output[i] = '\n        <span class="indexed">Indexed</span>'
-elseif tt2_true(stash_get(stash, {'row', 0, 'failed', 0})) then
-i = i + 1 output[i] = '\n        <span class="failed">Failed</span>'
-else
-i = i + 1 output[i] = '\n        <span class="pending">Pending</span>'
-end
-
-i = i + 1 output[i] = '\n        </td>\n\n        <td>\n            <a href="'
--- line 43 "index.tt2"
+i = i + 1 output[i] = '\n\n    <div class="main">\n        <a href="'
+-- line 15 "package_list.tt2"
 i = i + 1 output[i] = stash_get(stash, {'row', 0, 'repo_link', 0})
-i = i + 1 output[i] = '">\n            '
--- line 44 "index.tt2"
-
--- FILTER
-local value
-do
-    local output = {}
-    local i = 0
-
+i = i + 1 output[i] = '" class="title">\n            '
+-- line 16 "package_list.tt2"
 i = i + 1 output[i] = stash_get(stash, 'account') .. '/' .. stash_get(stash, {'row', 0, 'package_name', 0})
-
-    value = context.filter(output, 'html', {})
-end
-i = i + 1 output[i] = value
-
-i = i + 1 output[i] = '\n            </a>\n        </td>\n        <td>v'
--- line 47 "index.tt2"
+i = i + 1 output[i] = '\n        </a>\n        <span class="version_name">\n            '
+-- line 19 "package_list.tt2"
 
 -- FILTER
 local value
@@ -361,23 +427,18 @@ i = i + 1 output[i] = stash_get(stash, {'row', 0, 'version_s', 0})
 end
 i = i + 1 output[i] = value
 
-i = i + 1 output[i] = '</td>\n        <td>'
--- line 48 "index.tt2"
-
--- FILTER
-local value
-do
-    local output = {}
-    local i = 0
-
-i = i + 1 output[i] = stash_get(stash, {'row', 0, 'abstract', 0})
-
-    value = context.filter(output, 'html', {})
+i = i + 1 output[i] = '\n        </span>'
+-- line 27 "package_list.tt2"
+if tt2_true(stash_get(stash, {'row', 0, 'indexed', 0})) then
+i = i + 1 output[i] = '\n'
+elseif tt2_true(stash_get(stash, {'row', 0, 'failed', 0})) then
+i = i + 1 output[i] = '\n        <span class="failed">Failed</span>'
+else
+i = i + 1 output[i] = '\n        <span class="pending">Pending</span>'
 end
-i = i + 1 output[i] = value
 
-i = i + 1 output[i] = '</td>\n        <td>\n            <a href="https://github.com/'
--- line 50 "index.tt2"
+i = i + 1 output[i] = '\n        <span class="author">\n            by \n            <a href="https://github.com/'
+-- line 30 "package_list.tt2"
 
 -- FILTER
 local value
@@ -392,7 +453,7 @@ end
 i = i + 1 output[i] = value
 
 i = i + 1 output[i] = '/">\n                '
--- line 51 "index.tt2"
+-- line 31 "package_list.tt2"
 
 -- FILTER
 local value
@@ -406,8 +467,11 @@ i = i + 1 output[i] = stash_get(stash, 'uploader')
 end
 i = i + 1 output[i] = value
 
-i = i + 1 output[i] = '\n            </a>\n        </td>\n        <td>'
--- line 54 "index.tt2"
+i = i + 1 output[i] = '\n            </a>\n        </span>\n    </div>\n    <div class="summary">\n        '
+-- line 36 "package_list.tt2"
+i = i + 1 output[i] = stash_get(stash, {'row', 0, 'abstract', 0})
+i = i + 1 output[i] = '\n        <span class="updated_at">\n            '
+-- line 38 "package_list.tt2"
 
 -- FILTER
 local value
@@ -415,23 +479,74 @@ do
     local output = {}
     local i = 0
 
-i = i + 1 output[i] = stash_get(stash, {'row', 0, 'created_at', 0})
+i = i + 1 output[i] = stash_get(stash, {'row', 0, 'upload_updated_at', 0})
 
     value = context.filter(output, 'html', {})
 end
 i = i + 1 output[i] = value
 
-i = i + 1 output[i] = '</td>\n    </tr>'
+i = i + 1 output[i] = '\n        </span>\n    </div>\n</li>'
         iterator.first = false
         iterator.prev = value
     end
     stash_set(stash, 'loop', oldloop)
 end
 
-i = i + 1 output[i] = '\n    </tbody>\n    </table>\n</div>\n'
--- line 60 "index.tt2"
-i = i + 1 output[i] = context.process(context, 'footer.tt2')
-i = i + 1 output[i] = '\n</body>\n<script>\nvar ga_func = function () {\n    (function(i,s,o,g,r,a,m){i[\'GoogleAnalyticsObject\']=r;i[r]=i[r]||function(){\n        (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),\n    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)\n    })(window,document,\'script\',\'https://www.google-analytics.com/analytics.js\',\'ga\');\n\n    ga(\'create\', \'UA-24724965-2\', \'auto\');\n    ga(\'send\', \'pageview\');\n}\nsetTimeout(ga_func, 0);\n</script>\n</html>\n'
+i = i + 1 output[i] = '\n</ul>\n\n'
+-- line 45 "package_list.tt2"
+i = i + 1 output[i] = stash_get(stash, 'page_info')
+i = i + 1 output[i] = '\n'
+
+    return output
+end
+
+-- packages.tt2
+template_map['packages.tt2'] = function (context)
+    if not context then
+        return error("Lemplate function called without context\n")
+    end
+    local stash = context.stash
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = '\n<div class="main_col">\n<div class="split_header">\n    <h2>Recent packages\n    <span class="right">\n      <a href="/uploads">Recent uploads</a>\n    </span>\n    </h2>\n</div>\n\n'
+-- line 11 "packages.tt2"
+i = i + 1 output[i] = context.process(context, 'package_list.tt2')
+i = i + 1 output[i] = '\n</div>\n'
+
+    return output
+end
+
+-- search.tt2
+template_map['search.tt2'] = function (context)
+    if not context then
+        return error("Lemplate function called without context\n")
+    end
+    local stash = context.stash
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = '\n<div class="main_col">\n<div class="split_header">\n    <h2>Search results</h2>\n</div>\n\n'
+-- line 7 "search.tt2"
+i = i + 1 output[i] = context.process(context, 'package_list.tt2')
+i = i + 1 output[i] = '\n</div>\n'
+
+    return output
+end
+
+-- uploads.tt2
+template_map['uploads.tt2'] = function (context)
+    if not context then
+        return error("Lemplate function called without context\n")
+    end
+    local stash = context.stash
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = '\n<div class="main_col">\n<div class="split_header">\n    <h2>Recent uploads</h2>\n    <span class="right">\n      <a href="/packages">Recent packages</a>\n    </span>\n</div>\n\n'
+-- line 10 "uploads.tt2"
+i = i + 1 output[i] = context.process(context, 'package_list.tt2')
+i = i + 1 output[i] = '\n</div>\n'
 
     return output
 end
