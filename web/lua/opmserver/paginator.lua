@@ -4,7 +4,13 @@ local mt = { __index = _M }
 
 local str_find = string.find
 local str_gsub = string.gsub
+local tab_concat = table.concat
 local abs = math.abs
+local modf = math.modf
+
+local function tab_append(t, v)
+    t[#t+1] = v
+end
 
 function _M:new(url, total, page_size, page)
 
@@ -25,19 +31,22 @@ function _M:new(url, total, page_size, page)
     return this
 end
 
-function _M:setUrl(page)
+function _M:set_url(page)
 
     local url = self.url
 
     if str_find(url, '[&%?]page=') then
         url = str_gsub(url, '([&%?])page=%d+', '%1page=' .. page)
+
     else
         if not str_find(url, '%?') then
             url = url .. '?'
         end
+
         if str_find(url, '%w=') then
             url = url .. '&'
         end
+
         url = url .. 'page=' .. page
     end
 
@@ -46,104 +55,119 @@ end
 
 function _M:first(name)
 
-    name = name or 'first'
-    if self.page > 1 then
-        
-        return '<a href="' .. self:setUrl(1) .. '">' .. name .. '</a>'
-    else
-        return ''
-    end
-end
-
-function _M:prev()
-
-    local page
-    if self.page == 1 then
-        page = 1
-    else 
-        page = self.page - 1
-    end
-    if self.page > 1 then
-        
-        return '<a href="' .. self:setUrl(page) .. '">prev</a>'
-    else 
-        
-        return "<span class='disabled'>prev</span>"
-    end
-end
-
-function _M:next()
-
-    local pages
-    local page = self.page + 1
-    if self.page < self.page_count then
-        if self.page == 1 then
-            pages = self.page + 1
-            
-            return '<a href="' .. self:setUrl(pages) .. '">next</a>'
-        else 
-            
-            return '<a href="' .. self:setUrl(page) .. '">next</a>'
-        end
-    else 
-        
-        return "<span class='disabled'>next</span>"
-    end
-end
-
-function _M:last(name)
-
-    name = name or 'last'
-    if self.page < self.page_count then
-        
-        return '<a href="' .. self:setUrl(self.page_count) .. '">' 
-            .. name .. '</a>'
-    else
-        return ''
-    end
-end
-
-function _M:slide()
-
     local ret = ''
-    local i = 1
+    name = name or 'first'
 
-    while i <= self.page_count do
-        local show_link
-        if i == self.page then
-            ret = ret .. ' <span class="current">' .. i .. '</span>'
-        else
-            if i == 1 or i == self.page_count or abs(i - self.page) < 3 then
-                show_link = true
-            elseif abs(i - self.page) == 3 then
-                if (i == 2 and self.page == 5) or 
-                    (i == self.page_count - 1 and self.page == self.page_count - 4) then
-                    show_link = true
-                else
-                    ret = ret .. " ... "
-                end
-            end
-        end
-
-        if show_link then
-            ret = ret .. ' <a href="' .. self:setUrl(i) .. '">' 
-                .. i .. '</a>'
-        end
-
-        i = i + 1
+    if self.page > 1 then
+        ret = '<a href="' .. self:set_url(1) .. '">' .. name .. '</a>'
     end
 
     return ret
 end
 
+function _M:prev()
+
+    local ret = ''
+    local page
+
+    if self.page == 1 then
+        page = 1
+    
+    else 
+        page = self.page - 1
+    end
+
+    if self.page > 1 then
+        ret = '<a href="' .. self:set_url(page) .. '">prev</a>'
+
+    else 
+        ret = "<span class='disabled'>prev</span>"
+    end
+
+    return ret
+end
+
+function _M:next()
+
+    local ret = ''
+    local pages
+    local page = self.page + 1
+
+    if self.page < self.page_count then
+        if self.page == 1 then
+            pages = self.page + 1
+            ret = '<a href="' .. self:set_url(pages) .. '">next</a>'
+        
+        else 
+            ret = '<a href="' .. self:set_url(page) .. '">next</a>'
+        end
+
+    else 
+        ret = "<span class='disabled'>next</span>"
+    end
+
+    return ret
+end
+
+function _M:last(name)
+
+    local ret = ''
+    name = name or 'last'
+
+    if self.page < self.page_count then
+        ret = '<a href="' .. self:set_url(self.page_count) .. '">' 
+            .. name .. '</a>'
+    end
+
+    return ret
+end
+
+function _M:slide()
+
+    local ret = {}
+    local i = 1
+
+    while i <= self.page_count do
+        local show_link
+
+        if i == self.page then
+            tab_append(ret, ' <span class="current">' .. i .. '</span>')
+
+        else
+            if i == 1 or i == self.page_count or abs(i - self.page) < 3 then
+                show_link = true
+            
+            elseif abs(i - self.page) == 3 then
+                if (i == 2 and self.page == 5) or 
+                    (i == self.page_count - 1 and 
+                    self.page == self.page_count - 4) then
+
+                    show_link = true
+                
+                else
+                    tab_append(ret, " ... ")
+                end
+            end
+        end
+
+        if show_link then
+            tab_append(ret, ' <a href="' .. self:set_url(i) .. '">' 
+                     .. i .. '</a>')
+        end
+
+        i = i + 1
+    end
+
+    return tab_concat(ret)
+end
+
 function _M:show()
 
     local ret = '<div class="pager">'
-
-    ret = ret .. ' ' .. self:prev()
-    ret = ret .. ' ' .. self:slide()
-    ret = ret .. ' ' .. self:next()
-    ret = ret .. '</div>'
+        .. ' ' .. self:prev()
+        .. ' ' .. self:slide()
+        .. ' ' .. self:next()
+        ..      '</div>'
 
     return ret
 end
@@ -154,7 +178,7 @@ function _M.paging(total_count, page_size, curr_page)
     curr_page = curr_page or 1
     page_size = page_size or 20
 
-    local page_count, remainder = math.modf(total_count / page_size)
+    local page_count, remainder = modf(total_count / page_size)
     if remainder > 0 then
         page_count = page_count + 1 
     end
