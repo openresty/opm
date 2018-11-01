@@ -9,16 +9,15 @@ local abs = math.abs
 local modf = math.modf
 local ceil = math.ceil
 
-local function tab_append(t, v, idx)
-    idx = idx or #t
-    idx = idx + 1
-    t[idx] = v
-
-    return idx
+local function tab_append(t, idx, ...)
+    local n = select("#", ...)
+    for i = 1, n do
+        t[idx + i] = select(i, ...)
+    end
+    return idx + n
 end
 
 function _M:new(url, total, page_size, page)
-
     total = total or 1
     page_size = page_size or 20
     page = page or 1
@@ -37,7 +36,6 @@ function _M:new(url, total, page_size, page)
 end
 
 function _M:set_url(page)
-
     local url = self.url
 
     if str_find(url, '[&%?]page=') then
@@ -59,47 +57,31 @@ function _M:set_url(page)
 end
 
 function _M:prev()
-
-    local page
-
     if self.page == 1 then
-        page = 1
-    
-    else 
-        page = self.page - 1
-    end
-
-    if self.page > 1 then
-        return '<a href="' .. self:set_url(page) .. '">prev</a>'
-
-    else 
         return "<span class='disabled'>prev</span>"
     end
 
+    return '<a href="' .. self:set_url(self.page - 1) .. '">prev</a>'
 end
 
 function _M:next()
-
     local pages
     local page = self.page + 1
 
     if self.page < self.page_count then
         if self.page == 1 then
             pages = self.page + 1
+
             return '<a href="' .. self:set_url(pages) .. '">next</a>'
-        
-        else 
-            return '<a href="' .. self:set_url(page) .. '">next</a>'
         end
 
-    else 
-        return "<span class='disabled'>next</span>"
+        return '<a href="' .. self:set_url(page) .. '">next</a>'
     end
 
+    return "<span class='disabled'>next</span>"
 end
 
 function _M:slide()
-
     local ret = {}
     local tlen = 0
     local i = 1
@@ -108,7 +90,7 @@ function _M:slide()
         local show_link
 
         if i == self.page then
-            tlen = tab_append(ret, ' <span class="current">' .. i .. '</span>', tlen)
+            tlen = tab_append(ret, tlen, ' <span class="current">', i, '</span>')
 
         else
             if i == 1 or i == self.page_count or abs(i - self.page) < 3 then
@@ -116,20 +98,20 @@ function _M:slide()
             
             elseif abs(i - self.page) == 3 then
                 if (i == 2 and self.page == 5) or 
-                    (i == self.page_count - 1 and 
-                    self.page == self.page_count - 4) then
-
+                   (i == self.page_count - 1 and 
+                   self.page == self.page_count - 4) 
+                then
                     show_link = true
                 
                 else
-                    tlen = tab_append(ret, " ... ", tlen)
+                    tlen = tab_append(ret, tlen, " ... ")
                 end
             end
         end
 
         if show_link then
-            tlen = tab_append(ret, '<a href="' .. self:set_url(i) .. '">' 
-                    .. i .. '</a>', tlen)
+            tlen = tab_append(ret, tlen, '<a href="', self:set_url(i), '">', 
+                              i, '</a>')
         end
 
         i = i + 1
@@ -139,18 +121,16 @@ function _M:slide()
 end
 
 function _M:show()
-
     local ret = '<div class="pager">'
-        .. ' ' .. self:prev()
-        .. ' ' .. self:slide()
-        .. ' ' .. self:next()
-        ..      '</div>'
+                .. ' ' .. self:prev()
+                .. ' ' .. self:slide()
+                .. ' ' .. self:next()
+                ..      '</div>'
 
     return ret
 end
 
 function _M.paging(total_count, page_size, curr_page)
-
     total_count = total_count or 0
     curr_page = curr_page or 1
     page_size = page_size or 20
@@ -174,4 +154,3 @@ function _M.paging(total_count, page_size, curr_page)
 end
 
 return _M
-
