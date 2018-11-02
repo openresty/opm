@@ -1620,7 +1620,7 @@ do
     end
 end
 
-local default_page_size = 10
+local default_page_size = 15
 
 local function get_req_param(param_name, default, type_convert)
     local unescape_uri = ngx.unescape_uri

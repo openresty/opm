@@ -20,16 +20,25 @@ end
 function _M:new(url, total, page_size, page)
     total = total or 1
     page_size = page_size or 20
+
     page = page or 1
+    if page < 1 then
+        page = 1
+    end
+
+    local page_count = ceil(total / page_size)
+    if page > page_count then
+        page = page_count
+    end
 
     local this = {
         total = total,
         page_size = page_size,
         page = page,
-        page_count = ceil(total / page_size),
+        page_count = page_count,
         url = url
     }
-    
+
     setmetatable(this, mt)
 
     return this
@@ -39,7 +48,7 @@ function _M:set_url(page)
     local url = self.url
 
     if str_find(url, '[&%?]page=') then
-        url = str_gsub(url, '([&%?])page=%d+', '%1page=' .. page)
+        url = str_gsub(url, '([&%?])page=[^&#]*', '%1page=' .. page)
 
     else
         if not str_find(url, '%?') then
@@ -65,56 +74,82 @@ function _M:prev()
 end
 
 function _M:next()
-    local pages
-    local page = self.page + 1
-
     if self.page < self.page_count then
-        if self.page == 1 then
-            pages = self.page + 1
-
-            return '<a href="' .. self:set_url(pages) .. '">next</a>'
-        end
-
-        return '<a href="' .. self:set_url(page) .. '">next</a>'
+        return '<a href="' .. self:set_url(self.page + 1) .. '">next</a>'
     end
 
     return "<span class='disabled'>next</span>"
 end
 
-function _M:slide()
-    local ret = {}
-    local tlen = 0
-    local i = 1
+function _M:url_range(list, tlen, first, last)
+    last = last or first
 
-    while i <= self.page_count do
-        local show_link
-
+    for i = first, last do
         if i == self.page then
-            tlen = tab_append(ret, tlen, ' <span class="current">', i, '</span>')
-
+            tlen = tab_append(list, tlen, ' <span class="current">', 
+                              i, '</span>')
+        
         else
-            if i == 1 or i == self.page_count or abs(i - self.page) < 3 then
-                show_link = true
-            
-            elseif abs(i - self.page) == 3 then
-                if (i == 2 and self.page == 5) or 
-                   (i == self.page_count - 1 and 
-                   self.page == self.page_count - 4) 
-                then
-                    show_link = true
-                
-                else
-                    tlen = tab_append(ret, tlen, " ... ")
-                end
-            end
-        end
-
-        if show_link then
-            tlen = tab_append(ret, tlen, '<a href="', self:set_url(i), '">', 
+            tlen = tab_append(list, tlen, '<a href="', self:set_url(i), '">', 
                               i, '</a>')
         end
+    end
 
-        i = i + 1
+    return tlen
+end
+
+function _M:slide(each_side)
+    local ret = {}
+    local tlen = 0
+
+    each_side = each_side or 2
+    local window = each_side * 2
+    local left_dot_end
+    local right_dot_begin
+
+    if self.page > each_side + 3 then
+        left_dot_end = self.page - each_side
+        if left_dot_end > self.page_count - window then
+            left_dot_end = self.page_count - window
+        end
+        if left_dot_end <= 3 then
+            left_dot_end = nil
+        end
+    end
+
+    if self.page <= self.page_count - (each_side + 3) 
+       and self.page_count > (each_side + 3)
+    then
+        right_dot_begin = self.page + each_side
+        if right_dot_begin <= window then
+            right_dot_begin = window + 1
+        end
+        if self.page_count - right_dot_begin <= 2 then
+            right_dot_begin = nil
+        end
+    end
+
+    if left_dot_end then
+        tlen = self:url_range(ret, tlen, 1)
+        tlen = tab_append(ret, tlen, " ... ")
+        if right_dot_begin then
+            tlen = self:url_range(ret, tlen, left_dot_end, right_dot_begin)
+            tlen = tab_append(ret, tlen, " ... ")
+            tlen = self:url_range(ret, tlen, self.page_count)
+
+        else
+            tlen = self:url_range(ret, tlen, left_dot_end, self.page_count)
+        end
+
+    else
+        if right_dot_begin then
+            tlen = self:url_range(ret, tlen, 1, right_dot_begin)
+            tlen = tab_append(ret, tlen, " ... ")
+            tlen = self:url_range(ret, tlen, self.page_count)
+
+        else
+            tlen = self:url_range(ret, tlen, 1, self.page_count)
+        end
     end
 
     return tab_concat(ret)
@@ -133,6 +168,9 @@ end
 function _M.paging(total_count, page_size, curr_page)
     total_count = total_count or 0
     curr_page = curr_page or 1
+    if curr_page < 1 then
+        curr_page = 1
+    end
     page_size = page_size or 20
 
     local page_count, remainder = modf(total_count / page_size)
