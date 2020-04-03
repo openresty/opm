@@ -1780,10 +1780,10 @@ function _M.do_search_page()
 
     if str_len(query) > 0 then
         local total_count
-
+        local quoted_query = quote_sql_str(query)
         local sql = "select count(id) as total_count"
                     .. " from uploads, plainto_tsquery("
-                    .. quote_sql_str(query) .. ") q"
+                    .. quoted_query .. ") q"
                     .. " where indexed = true and ts_idx @@ q"
                     .. " group by package_name, uploader, org_account"
 
@@ -1792,14 +1792,13 @@ function _M.do_search_page()
 
         if total_count > 0 then
             local limit, offset = paginator.paging(total_count, page_size, curr_page)
-            local tsquery = "plainto_tsquery(" .. quote_sql_str(query) .. ")"
-
+            local tsquery = "plainto_tsquery(" .. quoted_query .. ")"
             local sql = "select ts_headline(abstract, " .. tsquery
-                        .. ", 'MaxFragments=1') as abstract"
+                        .. ", 'MaxFragments=0') as abstract"
                         .. ", ts_headline(package_name, " .. tsquery
-                        .. ", 'MaxFragments=1') as package_name"
+                        .. ", 'MaxFragments=0') as package_name"
                         .. ", orgs.login as org_name"
-                        .. ", users.login as uploader_name"
+                        .. ", users.login as uploader_name, repo_link"
                         .. ", to_char(upload_updated_at,'YYYY-MM-DD HH24:MI:SS') as upload_updated_at"
                         .. " from (select last(abstract) as abstract"
                         .. ", package_name, org_account, uploader, repo_link"
