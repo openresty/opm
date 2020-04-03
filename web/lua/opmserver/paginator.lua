@@ -2,10 +2,11 @@
 local _M = {}
 local mt = { __index = _M }
 
+local select = select
+local setmetatable = setmetatable
 local str_find = string.find
 local str_gsub = string.gsub
 local tab_concat = table.concat
-local abs = math.abs
 local modf = math.modf
 local ceil = math.ceil
 
@@ -88,7 +89,7 @@ function _M:url_range(list, tlen, first, last)
         if i == self.page then
             tlen = tab_append(list, tlen, ' <span class="current">', 
                               i, '</span>')
-        
+
         else
             tlen = tab_append(list, tlen, '<a href="', self:set_url(i), '">', 
                               i, '</a>')

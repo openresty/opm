@@ -61,8 +61,13 @@ restart:
 	sleep 0.01
 	$(MAKE) run
 
+.PHONY: check
+check: clean
+	find . -name "*.lua" | lj-releng -L
+
 .PHONY: clean
 clean:
+	rm -f $(webpath)/lua/opmserver/templates.lua
 	rm -f $(webpath)/logs/*
 
 .PHONY: initdb

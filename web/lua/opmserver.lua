@@ -31,13 +31,15 @@ local encode_json = cjson.encode
 local req_method = ngx.req.get_method
 local req_body_file = ngx.req.get_body_file
 local os_exec = os.execute
-local io_open = io.open
-local io_close = io.close
 local set_quote_sql_str = ndk.set_var.set_quote_pgsql_str
 local assert = assert
 local sub = string.sub
 local ngx_null = ngx.null
 local tab_concat = table.concat
+local tonumber = tonumber
+local tostring = tostring
+local ipairs = ipairs
+local type = type
 local shdict_bad_users = ngx.shared.bad_users
 
 
@@ -1707,7 +1709,7 @@ function _M.do_packages_page()
 
     if total_count > 0 then
         local limit, offset = paginator.paging(total_count, page_size, curr_page)
-        
+
         sql = [[select package_name, version_s, abstract, indexed, uploader,]]
               .. [[ org_account, to_char(t.updated_at,'YYYY-MM-DD HH24:MI:SS')]]
               .. [[ as upload_updated_at, users.login as uploader_name,]]
@@ -1792,12 +1794,12 @@ function _M.do_search_page()
             local limit, offset = paginator.paging(total_count, page_size, curr_page)
             local tsquery = "plainto_tsquery(" .. quote_sql_str(query) .. ")"
 
-            local sql = "select ts_headline(abstract, " .. tsquery 
-                        .. ", 'MaxFragments=1') as abstract" 
-                        .. ", ts_headline(package_name, " .. tsquery 
-                        .. ", 'MaxFragments=1') as package_name" 
+            local sql = "select ts_headline(abstract, " .. tsquery
+                        .. ", 'MaxFragments=1') as abstract"
+                        .. ", ts_headline(package_name, " .. tsquery
+                        .. ", 'MaxFragments=1') as package_name"
                         .. ", orgs.login as org_name"
-                        .. ", users.login as uploader_name" 
+                        .. ", users.login as uploader_name"
                         .. ", to_char(upload_updated_at,'YYYY-MM-DD HH24:MI:SS') as upload_updated_at"
                         .. " from (select last(abstract) as abstract"
                         .. ", package_name, org_account, uploader, repo_link"
@@ -1827,7 +1829,7 @@ function _M.do_search_page()
 
     view.show("search", {
         packages = search_results or {},
-        package_count = pkg_count or 0,
+        package_count = 0,
         query_words = query or '',
         page_info = page_info
     })
