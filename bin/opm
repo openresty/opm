@@ -89,8 +89,7 @@ if (defined $user_install_dir && defined $install_into_cwd) {
     err "conflicting options: --cwd and --install-dir=PATH cannot coexist.\n";
 }
 
-my $cmd = shift or
-    err "no command specified.\n";
+my $cmd = shift or usage(1);
 
 if ($cmd eq '-v') {
     print "opm $Version ($Config::Config{archname}, perl $^V)\n";
