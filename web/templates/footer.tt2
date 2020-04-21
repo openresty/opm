@@ -1,5 +1,5 @@
 
-<p>[% "Copyright © 2016, 2017, 2018 Yichun Zhang (agentzh)" %]</p>
+<p>[% "Copyright © 2016-2020 Yichun Zhang (agentzh)" %]</p>
 <p>[% "100% Powered by OpenResty and PostgreSQL" %]
  [% "(" %]<a href="https://github.com/openresty/opm/">[% "view the source code of this site" %]</a>[% ")" %]</p>
 <p>京ICP备16021991号</p>

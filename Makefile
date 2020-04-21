@@ -5,6 +5,9 @@ opm = $(abspath bin/opm) --cwd
 opm_pkg_indexer = $(abspath util/opm-pkg-indexer.pl) -i 1
 tt2_files := $(sort $(wildcard web/templates/*.tt2))
 templates_lua = web/lua/opmserver/templates.lua
+md2html = ./util/fmtMd.js
+md_files := $(wildcard web/docs/md/*.md) 
+html_files := $(patsubst web/docs/md/%.md,web/docs/html/%.html,$(md_files))
 
 INSTALL ?= install
 CP ?= cp
@@ -12,14 +15,22 @@ CP ?= cp
 VERSION ?= 0.1
 RELEASE ?= 1
 
+.PRECIOUS: $(md_files)
 .DELETE_ON_ERRORS: $(templates_lua)
 
 .PHONY: all
-all: $(templates_lua)
+all: $(templates_lua) $(html_files)
 
 $(templates_lua): $(tt2_files)
 	mkdir -p web/lua/opmserver/
 	lemplate --compile $^ > $@
+
+.PHONY: html
+html: $(html_files)
+
+web/docs/html/%.html: web/docs/md/%.md
+	@mkdir -p web/docs/html
+	$(md2html) $< > $@
 
 .PHONY: test
 test: | initdb restart
@@ -85,6 +96,7 @@ install:
 	$(CP) -r web/conf $(DESTDIR)web/conf
 	$(CP) -r web/css $(DESTDIR)web/css
 	$(CP) -r web/images $(DESTDIR)web/images
+	$(CP) -r web/docs/ $(DESTDIR)web/docs/
 	$(CP) -r web/lua $(DESTDIR)web/lua
 
 .PHONY: rpm
@@ -103,3 +115,4 @@ rpm:
 .PHONY: clean
 clean:
 	rm -f $(webpath)/lua/opmserver/templates.lua
+	rm -f $(html_files)

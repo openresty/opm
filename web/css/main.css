@@ -24,7 +24,7 @@ p {
   line-height: 1.2;
   margin: 10px 0; }
   p > code {
-    background: rgba(68, 68, 102, 0.1);
+    background: #f5f4f4;
     padding: 2px 4px;
     border-radius: 6px; }
 
@@ -137,8 +137,8 @@ input {
     float: right; }
 
 pre {
-  background: #323744;
-  color: white;
+  background: #f5f4f4;
+  color: #24292e;
   font-size: 16px;
   padding: 16px 24px;
   border-radius: 2px; }

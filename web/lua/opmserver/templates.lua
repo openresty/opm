@@ -258,6 +258,23 @@ i = i + 1 output[i] = '\n<script>\nvar ga_func = function () {\n    (function(i,
     return output
 end
 
+-- docs.tt2
+template_map['docs.tt2'] = function (context)
+    if not context then
+        return error("Lemplate function called without context\n")
+    end
+    local stash = context.stash
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = '\n<div class="main_col">\n<div class="split_header">\n    <h2>Docs</h2>\n</div>\n\n'
+-- line 7 "docs.tt2"
+i = i + 1 output[i] = stash_get(stash, 'doc_html')
+i = i + 1 output[i] = '\n</div>\n'
+
+    return output
+end
+
 -- footer.tt2
 template_map['footer.tt2'] = function (context)
     if not context then
@@ -269,7 +286,7 @@ template_map['footer.tt2'] = function (context)
 
 i = i + 1 output[i] = '\n<p>'
 -- line 2 "footer.tt2"
-i = i + 1 output[i] = 'Copyright © 2016, 2017, 2018 Yichun Zhang (agentzh)'
+i = i + 1 output[i] = 'Copyright © 2016-2020 Yichun Zhang (agentzh)'
 i = i + 1 output[i] = '</p>\n<p>'
 -- line 3 "footer.tt2"
 i = i + 1 output[i] = '100% Powered by OpenResty and PostgreSQL'
@@ -296,7 +313,7 @@ template_map['index.tt2'] = function (context)
     local output = {}
     local i = 0
 
-i = i + 1 output[i] = '\n<div class="intro_banner">\n    <div class="intro_banner_inner">\n        <div class="intro_text">\n        <p><b>opm</b> is the official OpenResty package manager, similar to Perl\'s CPAN and NodeJS\'s npm in rationale.</p>\n        <p>We provide both the opm client-side command-line utility and the server-side application for the central package repository.</p>\n        <p>Please read the <a href="https://github.com/openresty/opm#readme">opm documentation</a> for more details.</p>\n        <p>We already have <b>'
+i = i + 1 output[i] = '\n<div class="intro_banner">\n    <div class="intro_banner_inner">\n        <div class="intro_text">\n        <p><b>opm</b> is the official OpenResty package manager, similar to Perl\'s CPAN and NodeJS\'s npm in rationale.</p>\n        <p>We provide both the opm client-side command-line utility and the server-side application for the central package repository.</p>\n        <p>Please read the <a href="/docs">opm documentation</a> for more details.</p>\n        <p>We already have <b>'
 -- line 8 "index.tt2"
 i = i + 1 output[i] = stash_get(stash, 'total_uploads')
 i = i + 1 output[i] = '</b> successful uploads across <b>'
@@ -351,7 +368,7 @@ template_map['nav.tt2'] = function (context)
 i = i + 1 output[i] = '\n<div class="header_inner">\n<a href="https://openresty.org">\n    <img src="https://openresty.org/images/logo.png" width="64">\n</a>\n<nav class="logo_panel">\n<a href="/">\n    OPM\n</a>\n</nav>\n\n<form method="GET" action="/search" class="header_search">\n    <input type="text" placeholder="Search Packages ..." name="q" value="'
 -- line 13 "nav.tt2"
 i = i + 1 output[i] = stash_get(stash, 'query_words')
-i = i + 1 output[i] = '">\n</form>\n<nav class="nav_panel">\n    <a href="/packages">Browse </a>\n\n</nav>\n</div>\n'
+i = i + 1 output[i] = '">\n</form>\n<nav class="nav_panel">\n    <a href="/docs">Docs </a>\n\n</nav>\n</div>\n'
 
     return output
 end

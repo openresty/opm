@@ -1,0 +1,8 @@
+
+<div class="main_col">
+<div class="split_header">
+    <h2>Docs</h2>
+</div>
+
+[% doc_html %]
+</div>

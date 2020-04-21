@@ -4,7 +4,7 @@
         <div class="intro_text">
         <p><b>opm</b> is the official OpenResty package manager, similar to Perl's CPAN and NodeJS's npm in rationale.</p>
         <p>We provide both the opm client-side command-line utility and the server-side application for the central package repository.</p>
-        <p>Please read the <a href="https://github.com/openresty/opm#readme">opm documentation</a> for more details.</p>
+        <p>Please read the <a href="/docs">opm documentation</a> for more details.</p>
         <p>We already have <b>[% total_uploads %]</b> successful uploads across <b>[% package_count %]</b> distinct package names from <b>[% uploader_count %]</b> contributors. Come on, OPM authors!</p>
         </div>
     </div>

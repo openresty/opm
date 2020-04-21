@@ -40,7 +40,9 @@ local tonumber = tonumber
 local tostring = tostring
 local ipairs = ipairs
 local type = type
+local io_open = io.open
 local shdict_bad_users = ngx.shared.bad_users
+local prefix = ngx.config.prefix()
 
 
 local incoming_directory = "/opm/incoming"
@@ -79,6 +81,7 @@ local db_insert_user_verified_email
 local match_table = {}
 local ver2pg_array, tab2pg_array
 local count_bad_users
+local doc_htmls = {}
 
 
 -- an entry point
@@ -1641,7 +1644,8 @@ local routes = {
     index = 'do_index_page',
     search = 'do_search_page',
     packages = 'do_packages_page',
-    uploads = 'do_uploads_page'
+    uploads = 'do_uploads_page',
+    docs = 'do_docs_page',
 }
 
 function _M.do_web()
@@ -1834,6 +1838,37 @@ function _M.do_search_page()
         page_info = page_info
     })
 
+end
+
+local function read_file(path)
+    local fp, err = io_open(path)
+    if not fp then
+        return nil, err
+    end
+
+    local chunk = fp:read("*all")
+    fp:close()
+
+    return chunk
+end
+
+function _M.do_docs_page()
+    local doc_name = "docs"
+    local doc_html = doc_htmls[doc_name]
+    local err
+
+    if not doc_html then
+        local doc_path = prefix .. "/docs/html/" ..
+                         doc_name .. ".html"
+        doc_html, err = read_file(doc_path)
+        if not doc_html then
+            doc_html = err
+        end
+    end
+
+    view.show("docs", {
+        doc_html = doc_html,
+    })
 end
 
 function _M.do_404_page()
