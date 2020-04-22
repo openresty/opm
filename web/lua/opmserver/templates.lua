@@ -275,6 +275,35 @@ i = i + 1 output[i] = '\n</div>\n'
     return output
 end
 
+-- error.tt2
+template_map['error.tt2'] = function (context)
+    if not context then
+        return error("Lemplate function called without context\n")
+    end
+    local stash = context.stash
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = '\n<div class="main_col">\n<div class="split_header">\n    <h2>Error</h2>\n</div>\n\n<div class="error_info">\n    '
+-- line 8 "error.tt2"
+
+-- FILTER
+local value
+do
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = stash_get(stash, 'error_info')
+
+    value = context.filter(output, 'html', {})
+end
+i = i + 1 output[i] = value
+
+i = i + 1 output[i] = '\n</div>\n\n</div>\n'
+
+    return output
+end
+
 -- footer.tt2
 template_map['footer.tt2'] = function (context)
     if not context then
@@ -454,36 +483,12 @@ else
 i = i + 1 output[i] = '\n        <span class="pending">Pending</span>'
 end
 
-i = i + 1 output[i] = '\n        <span class="author">\n            by \n            <a href="https://github.com/'
+i = i + 1 output[i] = '\n        <span class="author">\n            by \n            <a href="/uploaders/'
 -- line 30 "package_list.tt2"
-
--- FILTER
-local value
-do
-    local output = {}
-    local i = 0
-
 i = i + 1 output[i] = stash_get(stash, 'uploader')
-
-    value = context.filter(output, 'html', {})
-end
-i = i + 1 output[i] = value
-
 i = i + 1 output[i] = '/">\n                '
 -- line 31 "package_list.tt2"
-
--- FILTER
-local value
-do
-    local output = {}
-    local i = 0
-
 i = i + 1 output[i] = stash_get(stash, 'uploader')
-
-    value = context.filter(output, 'html', {})
-end
-i = i + 1 output[i] = value
-
 i = i + 1 output[i] = '\n            </a>\n        </span>\n    </div>\n    <div class="summary">\n        '
 -- line 36 "package_list.tt2"
 i = i + 1 output[i] = stash_get(stash, {'row', 0, 'abstract', 0})
@@ -547,6 +552,76 @@ i = i + 1 output[i] = '\n<div class="main_col">\n<div class="split_header">\n   
 -- line 7 "search.tt2"
 i = i + 1 output[i] = context.process(context, 'package_list.tt2')
 i = i + 1 output[i] = '\n</div>\n'
+
+    return output
+end
+
+-- uploader.tt2
+template_map['uploader.tt2'] = function (context)
+    if not context then
+        return error("Lemplate function called without context\n")
+    end
+    local stash = context.stash
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = '\n<div class="main_col">\n<div class="split_header">\n    <h2>'
+-- line 4 "uploader.tt2"
+
+-- FILTER
+local value
+do
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = stash_get(stash, 'uploader_name')
+
+    value = context.filter(output, 'html', {})
+end
+i = i + 1 output[i] = value
+
+i = i + 1 output[i] = '\n    </h2>\n    <span class="user_github">\n      <a href="https://github.com/'
+-- line 7 "uploader.tt2"
+
+-- FILTER
+local value
+do
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = stash_get(stash, 'uploader_name')
+
+    value = context.filter(output, 'html', {})
+end
+i = i + 1 output[i] = value
+
+i = i + 1 output[i] = '/" target="_blank"><img src="/images/github.png" width="30" height="30" alt="GitHub"></a>\n    </span>\n</div>\n\n<div class="metadata_columns">\n    <div class="metadata_columns_inner">\n        <div class="column">\n            <h3>Packages</h3>'
+-- line 14 "uploader.tt2"
+i = i + 1 output[i] = stash_get(stash, 'packages_count')
+i = i + 1 output[i] = '\n        </div>'
+-- line 20 "uploader.tt2"
+if tt2_true(stash_get(stash, {'uploader', 0, 'public_email', 0})) then
+i = i + 1 output[i] = '\n        <div class="column">\n            <h3>Email</h3>'
+-- line 18 "uploader.tt2"
+i = i + 1 output[i] = stash_get(stash, {'uploader', 0, 'public_email', 0})
+i = i + 1 output[i] = '\n        </div>'
+end
+
+-- line 25 "uploader.tt2"
+if tt2_true(stash_get(stash, {'uploader', 0, 'blog', 0})) then
+i = i + 1 output[i] = '\n        <div class="column">\n            <h3>Blog</h3><a href="'
+-- line 23 "uploader.tt2"
+i = i + 1 output[i] = stash_get(stash, {'uploader', 0, 'blog', 0})
+i = i + 1 output[i] = '" target="_blank">'
+-- line 23 "uploader.tt2"
+i = i + 1 output[i] = stash_get(stash, {'uploader', 0, 'blog', 0})
+i = i + 1 output[i] = '</a>\n        </div>'
+end
+
+i = i + 1 output[i] = '\n    </div>\n</div>\n\n<section>\n'
+-- line 30 "uploader.tt2"
+i = i + 1 output[i] = context.process(context, 'package_list.tt2')
+i = i + 1 output[i] = '\n</section>\n</div>\n'
 
     return output
 end

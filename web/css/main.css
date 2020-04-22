@@ -191,6 +191,12 @@ pre {
       float: right;
       font-size: 18px;
      }
+    .main_page .split_header .user_github {
+      margin-top: 2px;
+      margin-right: 2px;
+      float: right;
+      font-size: 18px;
+     }
 
 .main_page .header_sub {
   font-size: 14px;
@@ -266,3 +272,33 @@ pre {
       float: right;
       margin-right: 5px;
       font-size: 14px; }
+
+.metadata_columns {
+  margin-top: 25px;
+  border: 1px solid #d3dbec;
+  white-space: nowrap; }
+  .metadata_columns .metadata_columns_inner {
+      max-width: 960px;
+      min-width: 800px;
+      margin: 0 auto; }
+  .metadata_columns .column {
+      box-sizing: border-box;
+      white-space: normal;
+      height: 75px;
+      margin-right: 40px;
+      border-left: 1px solid #d3dbec;
+      display: inline-block;
+      vertical-align: top;
+      font-size: 18px;
+      padding: 15px 0 15px 20px; }
+    .metadata_columns .column h3 {
+        margin-top: 0;
+        margin-bottom: 3px;
+        font-size: 12px;
+        color: #919294;
+        font-weight: bold;
+        text-transform: uppercase; }
+.error_info {
+  color: red;
+  margin-left: 2px;
+  font-size: 18px; }

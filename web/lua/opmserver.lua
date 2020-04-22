@@ -1648,12 +1648,27 @@ local routes = {
     docs = 'do_docs_page',
 }
 
+local function show_error_page(error_info)
+    view.show("error", {
+        error_info = error_info,
+    })
+end
+
 function _M.do_web()
     local uri = ngx.var.uri .. '/'
 
-    local paths = re_match(uri, [[\/(\w+)?\/]], 'jo')
+    local paths = re_match(uri, [[^\/(\w+)?\/]], 'jo')
     local path = paths[1] or 'index'
     local action = routes[path]
+
+    if not action then
+        paths = re_match(uri, [[^\/uploaders/([\w-]+)\/]], 'jo')
+        if paths then
+            local uploader_name = paths[1]
+            return _M.do_show_author(uploader_name)
+        end
+    end
+
     action = _M[action]
 
     if not action then
@@ -1661,6 +1676,42 @@ function _M.do_web()
     end
 
     return action()
+end
+
+function _M.do_show_author(uploader_name)
+    local sql
+    sql = "select * from users where login = "
+          .. quote_sql_str(uploader_name) .. " limit 1"
+
+    local rows = query_db(sql)
+
+    if not rows or #rows == 0 then
+        return show_error_page("user not found")
+    end
+
+    local uploader = rows[1]
+    local uploader_id = uploader.id
+
+    sql = [[select package_name, version_s, abstract, indexed, uploader,]]
+          .. [[ org_account, to_char(t.updated_at,'YYYY-MM-DD HH24:MI:SS')]]
+          .. [[ as upload_updated_at, users.login as uploader_name,]]
+          .. [[ orgs.login as org_name, repo_link]]
+          .. [[ from (select distinct on (package_name, uploader, org_account) *]]
+          .. [[ from uploads where indexed = true ]]
+          .. [[ order by package_name) t]]
+          .. [[ left join users on t.uploader = users.id ]]
+          .. [[ left join orgs on t.org_account = orgs.id]]
+          .. [[ where users.id = ]] .. uploader_id
+          .. [[ order by upload_updated_at DESC]]
+
+    local packages = query_db(sql)
+
+    view.show("uploader", {
+        uploader = uploader,
+        uploader_name = uploader_name,
+        packages = packages,
+        packages_count = #packages,
+    })
 end
 
 function _M.do_index_page()
@@ -1695,14 +1746,13 @@ function _M.do_index_page()
         package_count = pkg_count,
         packages = recent_packages
     })
-
 end
 
 function _M.do_packages_page()
     local curr_page = get_req_param('page', 1, tonumber)
     local page_size = default_page_size
 
-    local sql = [[select count(distinct(package_name, uploader, org_account))]] 
+    local sql = [[select count(distinct(package_name, uploader, org_account))]]
                 ..  [[ as total_count from uploads where indexed = true]]
 
     local rows = query_db(sql)

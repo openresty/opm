@@ -27,8 +27,8 @@
         [%- END %]
         <span class="author">
             by 
-            <a href="https://github.com/[% uploader | html %]/">
-                [% uploader | html %]
+            <a href="/uploaders/[% uploader %]/">
+                [% uploader %]
             </a>
         </span>
     </div>
