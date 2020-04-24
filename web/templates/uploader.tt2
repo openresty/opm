@@ -26,6 +26,8 @@
     </div>
 </div>
 
+<h3>Packages</h3>
+
 <section>
 [% PROCESS "package_list.tt2" %]
 </section>

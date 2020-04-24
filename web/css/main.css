@@ -298,6 +298,13 @@ pre {
         color: #919294;
         font-weight: bold;
         text-transform: uppercase; }
+
+.package_page h3 {
+  font-weight: bold; }
+
+.package_page .description {
+  margin-top: 30px; }
+
 .error_info {
   color: red;
   margin-left: 2px;

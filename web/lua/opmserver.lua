@@ -11,10 +11,11 @@ local ngx = require "ngx"
 local pgmoon = require "pgmoon"
 local tab_clear = require "table.clear"
 local limit_req = require "resty.limit.req"
-local templates = require "opmserver.templates"
 local email = require "opmserver.email"
 local paginator = require "opmserver.paginator"
 local view = require "opmserver.view"
+local utils = require "opmserver.utils"
+local read_file = utils.read_file
 local send_email = email.send_mail
 
 
@@ -40,7 +41,6 @@ local tonumber = tonumber
 local tostring = tostring
 local ipairs = ipairs
 local type = type
-local io_open = io.open
 local shdict_bad_users = ngx.shared.bad_users
 local prefix = ngx.config.prefix()
 
@@ -1640,6 +1640,7 @@ local function get_req_param(param_name, default, type_convert)
     return param
 end
 
+
 local routes = {
     index = 'do_index_page',
     search = 'do_search_page',
@@ -1648,24 +1649,40 @@ local routes = {
     docs = 'do_docs_page',
 }
 
+
 local function show_error_page(error_info)
     view.show("error", {
         error_info = error_info,
     })
 end
 
+
 function _M.do_web()
     local uri = ngx.var.uri .. '/'
 
-    local paths = re_match(uri, [[^\/(\w+)?\/]], 'jo')
+    local paths = re_match(uri, [[^/(\w+)?/]], 'jo')
     local path = paths[1] or 'index'
     local action = routes[path]
 
     if not action then
-        paths = re_match(uri, [[^\/uploaders/([\w-]+)\/]], 'jo')
-        if paths then
-            local uploader_name = paths[1]
-            return _M.do_show_author(uploader_name)
+        paths = re_match(uri, [[^/(\w+)/([\w-]+)/([\w-]+)?/?]], 'jo')
+        if paths and #path > 0 then
+            path = paths[1]
+
+            if path == 'uploader' then
+                local uploader = paths[2]
+                return _M.do_show_uploader(uploader)
+
+            elseif path == 'package' then
+                local account, pkg_name = paths[2], paths[3]
+                if not pkg_name then
+                    return show_error_page("no package_name specified")
+                end
+                return _M.do_show_package(account, pkg_name)
+
+            else
+                return show_error_page("invalid path")
+            end
         end
     end
 
@@ -1678,7 +1695,99 @@ function _M.do_web()
     return action()
 end
 
-function _M.do_show_author(uploader_name)
+
+function _M.do_show_package(account, pkg_name)
+    local quoted_pkg_name = quote_sql_str(pkg_name)
+    local quoted_account = quote_sql_str(account)
+
+    local user_id, org_id
+
+    local sql = "select id from users where login = " .. quoted_account
+
+    local rows = query_db(sql)
+
+    if #rows == 0 then
+        sql = "select id from orgs where login = " .. quoted_account
+        rows = query_db(sql)
+
+        if #rows == 0 then
+            return show_error_page("account name " .. account .. " not found")
+        end
+
+        org_id = assert(rows[1].id)
+
+    else
+        user_id = assert(rows[1].id)
+    end
+
+    local condition
+    if user_id then
+        condition = " users.id = " .. user_id
+
+    else
+        condition = " uploads.org_account = " .. org_id
+    end
+
+    sql = [[select package_name, version_s, abstract, indexed, authors, ]]
+          .. [[licenses, is_original, dep_packages, dep_operators, ]]
+          .. [[dep_versions, failed, users.login as uploader_name, ]]
+          .. [[orgs.login as org_name, repo_link, ]]
+          .. [[to_char(uploads.created_at,'YYYY-MM-DD HH24:MI:SS')]]
+          .. [[ as upload_updated_at from uploads]]
+          .. [[ left join users on uploads.uploader = users.id]]
+          .. [[ left join orgs on uploads.org_account = orgs.id]]
+          .. [[ where package_name = ]] .. quoted_pkg_name
+          .. [[ and ]] .. condition
+          .. [[ order by uploads.created_at desc]]
+
+    rows = query_db(sql)
+
+    if #rows == 0 then
+        return show_error_page("package " .. pkg_name
+                               .. " not found under account " .. account)
+    end
+
+    local pkg_info = rows[1]
+    if pkg_info.licenses then
+        pkg_info.licenses = tab_concat(pkg_info.licenses, ",")
+    end
+
+    if pkg_info.authors then
+        pkg_info.authors = tab_concat(pkg_info.authors, ",")
+    end
+
+    if pkg_info.dep_packages then
+        local dep_info = {}
+        for i, dep_name in ipairs(pkg_info.dep_packages) do
+            if str_find(dep_name, '/', nil, true) then
+                dep_name = '<a href="/package/' .. dep_name .. '">'
+                           .. dep_name .. '</a>'
+            end
+
+            local dep_op = pkg_info.dep_operators[i]
+            local dep_ver = pkg_info.dep_versions[i]
+            if dep_op and dep_op ~= 'NULL' then
+                dep_info[i] = dep_name .. ' ' .. dep_op .. ' ' .. dep_ver
+
+            else
+                dep_info[i] = dep_name
+            end
+        end
+
+        pkg_info.dep_info = tab_concat(dep_info, ", ")
+    end
+
+    view.show("package_info", {
+        pkg_info = pkg_info,
+        account = account,
+        pkg_name = pkg_name,
+        packages = rows,
+        packages_count = #rows,
+    })
+end
+
+
+function _M.do_show_uploader(uploader_name)
     local sql
     sql = "select * from users where login = "
           .. quote_sql_str(uploader_name) .. " limit 1"
@@ -1714,6 +1823,7 @@ function _M.do_show_author(uploader_name)
     })
 end
 
+
 function _M.do_index_page()
     local sql = [[select count(*) as total,
                 count(distinct uploader) as uploaders,
@@ -1748,6 +1858,7 @@ function _M.do_index_page()
     })
 end
 
+
 function _M.do_packages_page()
     local curr_page = get_req_param('page', 1, tonumber)
     local page_size = default_page_size
@@ -1772,7 +1883,7 @@ function _M.do_packages_page()
               .. [[ from uploads where indexed = true order by package_name) t]]
               .. [[ left join users on t.uploader = users.id]]
               .. [[ left join orgs on t.org_account = orgs.id]]
-              .. [[ order by upload_updated_at DESC limit ]] .. limit 
+              .. [[ order by upload_updated_at DESC limit ]] .. limit
               .. [[ offset ]] .. offset
 
         packages = query_db(sql)
@@ -1787,11 +1898,12 @@ function _M.do_packages_page()
     })
 end
 
+
 function _M.do_uploads_page()
     local curr_page = get_req_param('page', 1, tonumber)
     local page_size = default_page_size
 
-    local sql = [[select count(id) as total_count from uploads]] 
+    local sql = [[select count(id) as total_count from uploads]]
 
     local rows = query_db(sql)
     local row = rows[1]
@@ -1802,21 +1914,20 @@ function _M.do_uploads_page()
     if total_count > 0 then
         local limit, offset = paginator.paging(total_count, page_size, curr_page)
 
-        local sql = [[select package_name, version_s, abstract, indexed]]
-                    .. [[, failed, users.login as uploader_name]]
-                    .. [[, orgs.login as org_name, repo_link]]
-                    .. [[, to_char(uploads.created_at,'YYYY-MM-DD HH24:MI:SS')]]
-                    .. [[ as upload_updated_at from uploads]]
-                    .. [[ left join users on uploads.uploader = users.id]]
-                    .. [[ left join orgs on uploads.org_account = orgs.id]]
-                    .. [[ order by uploads.created_at desc limit ]] 
-                    .. limit .. [[ offset ]] .. offset
+        sql = [[select package_name, version_s, abstract, indexed]]
+              .. [[, failed, users.login as uploader_name]]
+              .. [[, orgs.login as org_name, repo_link]]
+              .. [[, to_char(uploads.created_at,'YYYY-MM-DD HH24:MI:SS')]]
+              .. [[ as upload_updated_at from uploads]]
+              .. [[ left join users on uploads.uploader = users.id]]
+              .. [[ left join orgs on uploads.org_account = orgs.id]]
+              .. [[ order by uploads.created_at desc limit ]]
+              .. limit .. [[ offset ]] .. offset
 
         packages = query_db(sql)
 
         page_info = paginator:new(ngx.var.request_uri, total_count,
                                   page_size, curr_page):show()
-
     end
 
     view.show("uploads", {
@@ -1825,7 +1936,9 @@ function _M.do_uploads_page()
     })
 end
 
+
 function _M.do_search_page()
+    local sql
     local query = get_req_param('q', '')
     local curr_page = get_req_param('page', 1, tonumber)
     local page_size = default_page_size
@@ -1835,11 +1948,12 @@ function _M.do_search_page()
     if str_len(query) > 0 then
         local total_count
         local quoted_query = quote_sql_str(query)
-        local sql = "select count(id) as total_count"
-                    .. " from uploads, plainto_tsquery("
-                    .. quoted_query .. ") q"
-                    .. " where indexed = true and ts_idx @@ q"
-                    .. " group by package_name, uploader, org_account"
+
+        sql = "select count(id) as total_count"
+              .. " from uploads, plainto_tsquery("
+              .. quoted_query .. ") q"
+              .. " where indexed = true and ts_idx @@ q"
+              .. " group by package_name, uploader, org_account"
 
         local rows = query_db(sql)
         total_count = #rows
@@ -1847,31 +1961,35 @@ function _M.do_search_page()
         if total_count > 0 then
             local limit, offset = paginator.paging(total_count, page_size, curr_page)
             local tsquery = "plainto_tsquery(" .. quoted_query .. ")"
-            local sql = "select ts_headline(abstract, " .. tsquery
-                        .. ", 'MaxFragments=0') as abstract"
-                        .. ", ts_headline(package_name, " .. tsquery
-                        .. ", 'MaxFragments=0') as package_name"
-                        .. ", orgs.login as org_name, version_s"
-                        .. ", users.login as uploader_name, repo_link"
-                        .. ", to_char(upload_updated_at,'YYYY-MM-DD HH24:MI:SS') as upload_updated_at"
-                        .. " from (select last(abstract) as abstract"
-                        .. ", package_name, org_account, uploader, repo_link"
-                        .. ", ts_rank_cd(last(ts_idx), last(q), 1) as rank"
-                        .. ", max(updated_at) as upload_updated_at"
-                        .. ", last(version_s) as version_s"
-                        .. " from uploads, " .. tsquery .. " q"
-                        .. " where indexed = true and ts_idx @@ q"
-                        .. " group by package_name, uploader, org_account, repo_link"
-                        .. " order by rank desc limit " .. limit
-                        .. " offset " .. offset .. ") as tmp"
-                        .. " left join users on tmp.uploader = users.id"
-                        .. " left join orgs on tmp.org_account = orgs.id"
+
+            sql = "select ts_headline(abstract, " .. tsquery
+                  .. ", 'MaxFragments=0') as abstract"
+                  .. ", ts_headline(package_name, " .. tsquery
+                  .. ", 'MaxFragments=0') as package_name"
+                  .. ", orgs.login as org_name, version_s"
+                  .. ", users.login as uploader_name, repo_link"
+                  .. ", to_char(upload_updated_at,'YYYY-MM-DD HH24:MI:SS')"
+                  .. " as upload_updated_at"
+                  .. " from (select last(abstract) as abstract"
+                  .. ", package_name, org_account, uploader, repo_link"
+                  .. ", ts_rank_cd(last(ts_idx), last(q), 1) as rank"
+                  .. ", max(updated_at) as upload_updated_at"
+                  .. ", last(version_s) as version_s"
+                  .. " from uploads, " .. tsquery .. " q"
+                  .. " where indexed = true and ts_idx @@ q"
+                  .. " group by package_name, uploader, org_account, repo_link"
+                  .. " order by rank desc limit " .. limit
+                  .. " offset " .. offset .. ") as tmp"
+                  .. " left join users on tmp.uploader = users.id"
+                  .. " left join orgs on tmp.org_account = orgs.id"
 
             search_results = query_db(sql)
 
             if search_results and #search_results > 0 then
-                for i, row in ipairs(search_results) do
+                for _, row in ipairs(search_results) do
                     row.indexed = true
+                    row.raw_package_name = re_gsub(row.package_name, "<[^>]*>",
+                                                   "", "jo")
                 end
             end
 
@@ -1890,17 +2008,6 @@ function _M.do_search_page()
 
 end
 
-local function read_file(path)
-    local fp, err = io_open(path)
-    if not fp then
-        return nil, err
-    end
-
-    local chunk = fp:read("*all")
-    fp:close()
-
-    return chunk
-end
 
 function _M.do_docs_page()
     local doc_name = "docs"
@@ -1908,8 +2015,7 @@ function _M.do_docs_page()
     local err
 
     if not doc_html then
-        local doc_path = prefix .. "/docs/html/" ..
-                         doc_name .. ".html"
+        local doc_path = prefix .. "/docs/html/" .. doc_name .. ".html"
         doc_html, err = read_file(doc_path)
         if not doc_html then
             doc_html = err
@@ -1921,9 +2027,10 @@ function _M.do_docs_page()
     })
 end
 
+
 function _M.do_404_page()
     view.show("404")
-
 end
+
 
 return _M

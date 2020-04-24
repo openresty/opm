@@ -12,7 +12,12 @@
        END %]
 
     <div class="main">
-        <a href="[% row.repo_link %]" class="title">
+        [%- IF row.raw_package_name %]
+        <a href="/package/[% account _ "/" _ row.raw_package_name %]/" class="title">
+        [%- ELSE %]
+        <a href="/package/[% account _ "/" _ row.package_name %]/" class="title">
+        [%- END %]
+
             [% account _ "/" _ row.package_name %]
         </a>
         <span class="version_name">
@@ -27,7 +32,7 @@
         [%- END %]
         <span class="author">
             by 
-            <a href="/uploaders/[% uploader %]/">
+            <a href="/uploader/[% uploader %]/">
                 [% uploader %]
             </a>
         </span>

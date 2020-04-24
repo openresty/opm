@@ -402,6 +402,101 @@ i = i + 1 output[i] = '">\n</form>\n<nav class="nav_panel">\n    <a href="/docs"
     return output
 end
 
+-- package_info.tt2
+template_map['package_info.tt2'] = function (context)
+    if not context then
+        return error("Lemplate function called without context\n")
+    end
+    local stash = context.stash
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = '\n<div class="main_col">\n<div class="split_header">\n    <h2>'
+-- line 4 "package_info.tt2"
+
+-- FILTER
+local value
+do
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = stash_get(stash, 'pkg_name')
+
+    value = context.filter(output, 'html', {})
+end
+i = i + 1 output[i] = value
+
+i = i + 1 output[i] = '\n    </h2>\n    <div class="description">\n        <p>\n        '
+-- line 8 "package_info.tt2"
+
+-- FILTER
+local value
+do
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = stash_get(stash, {'pkg_info', 0, 'abstract', 0})
+
+    value = context.filter(output, 'html', {})
+end
+i = i + 1 output[i] = value
+
+i = i + 1 output[i] = '\n        </p>\n    </div>\n</div>\n\n<div class="metadata_columns">\n    <div class="metadata_columns_inner">\n        <div class="column">\n            <h3>Account</h3>'
+-- line 16 "package_info.tt2"
+i = i + 1 output[i] = stash_get(stash, 'account')
+i = i + 1 output[i] = '\n        </div>\n        <div class="column">\n            <h3>Repo</h3><a href="'
+-- line 19 "package_info.tt2"
+i = i + 1 output[i] = stash_get(stash, {'pkg_info', 0, 'repo_link', 0})
+i = i + 1 output[i] = '" target="_blank">'
+-- line 19 "package_info.tt2"
+i = i + 1 output[i] = stash_get(stash, {'pkg_info', 0, 'repo_link', 0})
+i = i + 1 output[i] = '</a>\n        </div>\n    </div>\n</div>\n\n<h3>License</h3>\n<div class="description">\n    <p>\n    '
+-- line 27 "package_info.tt2"
+
+-- FILTER
+local value
+do
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = stash_get(stash, {'pkg_info', 0, 'licenses', 0})
+
+    value = context.filter(output, 'html', {})
+end
+i = i + 1 output[i] = value
+
+i = i + 1 output[i] = '\n    </p>\n</div>\n\n<h3>Authors</h3>\n<div class="description">\n    <p>\n    '
+-- line 34 "package_info.tt2"
+
+-- FILTER
+local value
+do
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = stash_get(stash, {'pkg_info', 0, 'authors', 0})
+
+    value = context.filter(output, 'html', {})
+end
+i = i + 1 output[i] = value
+
+i = i + 1 output[i] = '\n    </p>\n</div>\n'
+-- line 45 "package_info.tt2"
+if tt2_true(stash_get(stash, {'pkg_info', 0, 'dep_info', 0})) then
+i = i + 1 output[i] = '\n<h3>Dependencies</h3>\n<div class="description">\n    <p>\n    '
+-- line 42 "package_info.tt2"
+i = i + 1 output[i] = stash_get(stash, {'pkg_info', 0, 'dep_info', 0})
+i = i + 1 output[i] = '\n    </p>\n</div>'
+end
+
+i = i + 1 output[i] = '\n\n<h3>Versions</h3>\n\n<section>\n'
+-- line 50 "package_info.tt2"
+i = i + 1 output[i] = context.process(context, 'package_list.tt2')
+i = i + 1 output[i] = '\n</section>\n</div>\n'
+
+    return output
+end
+
 -- package_list.tt2
 template_map['package_list.tt2'] = function (context)
     if not context then
@@ -412,7 +507,7 @@ template_map['package_list.tt2'] = function (context)
     local i = 0
 
 i = i + 1 output[i] = '\n<ul class="package_list">\n'
--- line 42 "package_list.tt2"
+-- line 47 "package_list.tt2"
 
 -- FOREACH
 do
@@ -452,14 +547,25 @@ if tt2_true(stash_get(stash, 'org')) then
 stash_set(stash, 'account', stash_get(stash, 'org'));
 end
 
-i = i + 1 output[i] = '\n\n    <div class="main">\n        <a href="'
--- line 15 "package_list.tt2"
-i = i + 1 output[i] = stash_get(stash, {'row', 0, 'repo_link', 0})
-i = i + 1 output[i] = '" class="title">\n            '
+i = i + 1 output[i] = '\n\n    <div class="main">'
+-- line 19 "package_list.tt2"
+if tt2_true(stash_get(stash, {'row', 0, 'raw_package_name', 0})) then
+i = i + 1 output[i] = '\n        <a href="/package/'
 -- line 16 "package_list.tt2"
+i = i + 1 output[i] = stash_get(stash, 'account') .. '/' .. stash_get(stash, {'row', 0, 'raw_package_name', 0})
+i = i + 1 output[i] = '/" class="title">'
+else
+i = i + 1 output[i] = '\n        <a href="/package/'
+-- line 18 "package_list.tt2"
+i = i + 1 output[i] = stash_get(stash, 'account') .. '/' .. stash_get(stash, {'row', 0, 'package_name', 0})
+i = i + 1 output[i] = '/" class="title">'
+end
+
+i = i + 1 output[i] = '\n\n            '
+-- line 21 "package_list.tt2"
 i = i + 1 output[i] = stash_get(stash, 'account') .. '/' .. stash_get(stash, {'row', 0, 'package_name', 0})
 i = i + 1 output[i] = '\n        </a>\n        <span class="version_name">\n            '
--- line 19 "package_list.tt2"
+-- line 24 "package_list.tt2"
 
 -- FILTER
 local value
@@ -474,7 +580,7 @@ end
 i = i + 1 output[i] = value
 
 i = i + 1 output[i] = '\n        </span>'
--- line 27 "package_list.tt2"
+-- line 32 "package_list.tt2"
 if tt2_true(stash_get(stash, {'row', 0, 'indexed', 0})) then
 i = i + 1 output[i] = '\n'
 elseif tt2_true(stash_get(stash, {'row', 0, 'failed', 0})) then
@@ -483,17 +589,17 @@ else
 i = i + 1 output[i] = '\n        <span class="pending">Pending</span>'
 end
 
-i = i + 1 output[i] = '\n        <span class="author">\n            by \n            <a href="/uploaders/'
--- line 30 "package_list.tt2"
+i = i + 1 output[i] = '\n        <span class="author">\n            by \n            <a href="/uploader/'
+-- line 35 "package_list.tt2"
 i = i + 1 output[i] = stash_get(stash, 'uploader')
 i = i + 1 output[i] = '/">\n                '
--- line 31 "package_list.tt2"
+-- line 36 "package_list.tt2"
 i = i + 1 output[i] = stash_get(stash, 'uploader')
 i = i + 1 output[i] = '\n            </a>\n        </span>\n    </div>\n    <div class="summary">\n        '
--- line 36 "package_list.tt2"
+-- line 41 "package_list.tt2"
 i = i + 1 output[i] = stash_get(stash, {'row', 0, 'abstract', 0})
 i = i + 1 output[i] = '\n        <span class="updated_at">\n            '
--- line 38 "package_list.tt2"
+-- line 43 "package_list.tt2"
 
 -- FILTER
 local value
@@ -515,7 +621,7 @@ i = i + 1 output[i] = '\n        </span>\n    </div>\n</li>'
 end
 
 i = i + 1 output[i] = '\n</ul>\n\n'
--- line 45 "package_list.tt2"
+-- line 50 "package_list.tt2"
 i = i + 1 output[i] = stash_get(stash, 'page_info')
 i = i + 1 output[i] = '\n'
 
@@ -618,8 +724,8 @@ i = i + 1 output[i] = stash_get(stash, {'uploader', 0, 'blog', 0})
 i = i + 1 output[i] = '</a>\n        </div>'
 end
 
-i = i + 1 output[i] = '\n    </div>\n</div>\n\n<section>\n'
--- line 30 "uploader.tt2"
+i = i + 1 output[i] = '\n    </div>\n</div>\n\n<h3>Packages</h3>\n\n<section>\n'
+-- line 32 "uploader.tt2"
 i = i + 1 output[i] = context.process(context, 'package_list.tt2')
 i = i + 1 output[i] = '\n</section>\n</div>\n'
 

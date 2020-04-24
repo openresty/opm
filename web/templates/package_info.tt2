@@ -1,0 +1,52 @@
+
+<div class="main_col">
+<div class="split_header">
+    <h2>[% pkg_name | html %]
+    </h2>
+    <div class="description">
+        <p>
+        [% pkg_info.abstract | html %]
+        </p>
+    </div>
+</div>
+
+<div class="metadata_columns">
+    <div class="metadata_columns_inner">
+        <div class="column">
+            <h3>Account</h3>[% account %]
+        </div>
+        <div class="column">
+            <h3>Repo</h3><a href="[% pkg_info.repo_link %]" target="_blank">[% pkg_info.repo_link %]</a>
+        </div>
+    </div>
+</div>
+
+<h3>License</h3>
+<div class="description">
+    <p>
+    [% pkg_info.licenses | html %]
+    </p>
+</div>
+
+<h3>Authors</h3>
+<div class="description">
+    <p>
+    [% pkg_info.authors | html %]
+    </p>
+</div>
+
+[%- IF pkg_info.dep_info %]
+<h3>Dependencies</h3>
+<div class="description">
+    <p>
+    [% pkg_info.dep_info %]
+    </p>
+</div>
+[%- END %]
+
+<h3>Versions</h3>
+
+<section>
+[% PROCESS "package_list.tt2" %]
+</section>
+</div>
