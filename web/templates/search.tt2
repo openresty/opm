@@ -1,0 +1,8 @@
+
+<div class="main_col">
+<div class="split_header">
+    <h2>Search results</h2>
+</div>
+
+[% PROCESS "package_list.tt2" %]
+</div>

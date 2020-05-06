@@ -1,0 +1,19 @@
+
+<div class="header_inner">
+<a href="https://openresty.org">
+    <img src="https://openresty.org/images/logo.png" width="64">
+</a>
+<nav class="logo_panel">
+<a href="/">
+    OPM
+</a>
+</nav>
+
+<form method="GET" action="/search" class="header_search">
+    <input type="text" placeholder="Search Packages ..." name="q" value="[% query_words %]">
+</form>
+<nav class="nav_panel">
+    <a href="/docs">Docs </a>
+
+</nav>
+</div>

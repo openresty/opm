@@ -1,0 +1,34 @@
+
+<div class="main_col">
+<div class="split_header">
+    <h2>[% uploader_name | html %]
+    </h2>
+    <span class="user_github">
+      <a href="https://github.com/[% uploader_name | html %]/" target="_blank"><img src="/images/github.png" width="30" height="30" alt="GitHub"></a>
+    </span>
+</div>
+
+<div class="metadata_columns">
+    <div class="metadata_columns_inner">
+        <div class="column">
+            <h3>Packages</h3>[% packages_count %]
+        </div>
+        [%- IF uploader.public_email %]
+        <div class="column">
+            <h3>Email</h3>[% uploader.public_email %]
+        </div>
+        [%- END %]
+        [%- IF uploader.blog %]
+        <div class="column">
+            <h3>Blog</h3><a href="[% uploader.blog %]" target="_blank">[% uploader.blog %]</a>
+        </div>
+        [%- END %]
+    </div>
+</div>
+
+<h3>Packages</h3>
+
+<section>
+[% PROCESS "package_list.tt2" %]
+</section>
+</div>

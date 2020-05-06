@@ -1,5 +1,7 @@
 local resty_ini = require "resty.ini"
 
+
+local ngx = ngx
 local find = ngx.re.find
 local gsub = ngx.re.gsub
 local sub = string.sub
@@ -132,7 +134,7 @@ function _M.send_mail(recipient, recipient_name, mail_title, mail_body)
         return nil, err
     end
 
-    sess, err = sock:sslhandshake(nil, host, true)
+    local sess, err = sock:sslhandshake(nil, host, true)
     if not sess then
         return nil, err
     end

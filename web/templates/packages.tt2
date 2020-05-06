@@ -1,0 +1,12 @@
+
+<div class="main_col">
+<div class="split_header">
+    <h2>Recent packages
+    <span class="right">
+      <a href="/uploads">Recent uploads</a>
+    </span>
+    </h2>
+</div>
+
+[% PROCESS "package_list.tt2" %]
+</div>

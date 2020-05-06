@@ -281,10 +281,10 @@ HTTP proxies are supported via the `http_proxy` and `https_proxy` system environ
 
 ```
 http_proxy [protocol://]<host>[:port]
-	  Sets the proxy server to use for HTTP.
+      Sets the proxy server to use for HTTP.
 
 https_proxy [protocol://]<host>[:port]
-	  Sets the proxy server to use for HTTPS.
+      Sets the proxy server to use for HTTPS.
 ```
 
 [Back to TOC](#table-of-contents)

@@ -2,6 +2,13 @@
 *.bak
 *.swp
 *.swo
+.DS_Store
 web/logs/
+web/docs/html/
 ebooks.sh
 web/email.ini
+node_modules
+package-lock.json
+
+# rpm
+buildroot
