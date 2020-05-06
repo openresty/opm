@@ -1675,6 +1675,10 @@ function _M.do_web()
     local uri = ngx.var.uri .. '/'
 
     local paths = re_match(uri, [[^/(\w+)?/]], 'jo')
+    if not paths then
+        return ngx.exit(404)
+    end
+
     local path = paths[1] or 'index'
     local action = routes[path]
 
