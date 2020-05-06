@@ -1641,6 +1641,20 @@ local function get_req_param(param_name, default, type_convert)
 end
 
 
+local pkg_base_sql =
+    [[select package_name, version_s, abstract, indexed, uploader,]]
+    .. [[ org_account, to_char(t.updated_at,'YYYY-MM-DD HH24:MI:SS')]]
+    .. [[ as upload_updated_at, users.login as uploader_name,]]
+    .. [[ orgs.login as org_name, repo_link]]
+    .. [[ from (select package_name, uploader, org_account,]]
+    .. [[ max(version_s) as version_s, last(abstract) as abstract,]]
+    .. [[ last(indexed) as indexed, max(updated_at) as updated_at, ]]
+    .. [[ last(repo_link) as repo_link ]]
+    .. [[ from uploads where indexed = true ]]
+    .. [[ group by package_name, uploader, org_account) t]]
+    .. [[ left join users on t.uploader = users.id]]
+    .. [[ left join orgs on t.org_account = orgs.id]]
+
 local routes = {
     index = 'do_index_page',
     search = 'do_search_page',
@@ -1801,15 +1815,7 @@ function _M.do_show_uploader(uploader_name)
     local uploader = rows[1]
     local uploader_id = uploader.id
 
-    sql = [[select package_name, version_s, abstract, indexed, uploader,]]
-          .. [[ org_account, to_char(t.updated_at,'YYYY-MM-DD HH24:MI:SS')]]
-          .. [[ as upload_updated_at, users.login as uploader_name,]]
-          .. [[ orgs.login as org_name, repo_link]]
-          .. [[ from (select distinct on (package_name, uploader, org_account) *]]
-          .. [[ from uploads where indexed = true ]]
-          .. [[ order by package_name) t]]
-          .. [[ left join users on t.uploader = users.id ]]
-          .. [[ left join orgs on t.org_account = orgs.id]]
+    sql = pkg_base_sql
           .. [[ where users.id = ]] .. uploader_id
           .. [[ order by upload_updated_at DESC]]
 
@@ -1838,14 +1844,7 @@ function _M.do_index_page()
     local uploader_count = row.uploaders
     local pkg_count = row.pkg_count
 
-    sql = [[select package_name, version_s, abstract, indexed, uploader,]]
-          .. [[ org_account, to_char(t.updated_at,'YYYY-MM-DD HH24:MI:SS')]]
-          .. [[ as upload_updated_at, users.login as uploader_name,]]
-          .. [[ orgs.login as org_name, repo_link]]
-          .. [[ from (select distinct on (package_name, uploader, org_account) *]]
-          .. [[ from uploads where indexed = true order by package_name) t]]
-          .. [[ left join users on t.uploader = users.id]]
-          .. [[ left join orgs on t.org_account = orgs.id]]
+    sql = pkg_base_sql
           .. [[ order by upload_updated_at DESC limit 10]]
 
     local recent_packages = query_db(sql)
@@ -1875,14 +1874,7 @@ function _M.do_packages_page()
     if total_count > 0 then
         local limit, offset = paginator.paging(total_count, page_size, curr_page)
 
-        sql = [[select package_name, version_s, abstract, indexed, uploader,]]
-              .. [[ org_account, to_char(t.updated_at,'YYYY-MM-DD HH24:MI:SS')]]
-              .. [[ as upload_updated_at, users.login as uploader_name,]]
-              .. [[ orgs.login as org_name, repo_link]]
-              .. [[ from (select distinct on (package_name, uploader, org_account) *]]
-              .. [[ from uploads where indexed = true order by package_name) t]]
-              .. [[ left join users on t.uploader = users.id]]
-              .. [[ left join orgs on t.org_account = orgs.id]]
+        sql = pkg_base_sql
               .. [[ order by upload_updated_at DESC limit ]] .. limit
               .. [[ offset ]] .. offset
 
@@ -1974,7 +1966,7 @@ function _M.do_search_page()
                   .. ", package_name, org_account, uploader, repo_link"
                   .. ", ts_rank_cd(last(ts_idx), last(q), 1) as rank"
                   .. ", max(updated_at) as upload_updated_at"
-                  .. ", last(version_s) as version_s"
+                  .. ", max(version_s) as version_s"
                   .. " from uploads, " .. tsquery .. " q"
                   .. " where indexed = true and ts_idx @@ q"
                   .. " group by package_name, uploader, org_account, repo_link"
