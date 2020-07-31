@@ -884,7 +884,7 @@ do
         end
 
         if not res then
-            ngx.log(ngx.ERR, "fatal response due to query failures")
+            ngx.log(ngx.ERR, "fatal response due to query failures", err)
             return ngx.exit(500)
         end
 
@@ -1086,7 +1086,18 @@ do
                 return log_and_out_err(ctx, 400, "no dep_versions defined")
             end
 
-            -- ngx.log(ngx.WARN, "abstract: ", abstract)
+            local doc_file = data.doc_file
+            local doc, err
+            if doc_file then
+                doc, err = read_file(doc_file)
+                if not doc then
+                    ngx.log(ngx.WARN, "read doc file failed: ", err)
+                end
+            end
+
+            if not doc then
+                doc = 'unknown'
+            end
 
             sql = "update uploads set indexed = true"
                   .. ", updated_at = now(), authors = "
@@ -1098,7 +1109,8 @@ do
                   .. quote_sql_str(final_md5) .. ", dep_packages = "
                   .. tab2pg_array(dep_pkgs) .. ", dep_operators = "
                   .. tab2pg_array(dep_ops) .. ", dep_versions = "
-                  .. tab2pg_array(dep_vers)
+                  .. tab2pg_array(dep_vers) .. ", doc = "
+                  .. quote_sql_str(doc)
                   .. " where id = " .. quote_sql_str(id)
         end
 
@@ -1746,7 +1758,7 @@ function _M.do_show_package(account, pkg_name)
         condition = " uploads.org_account = " .. org_id
     end
 
-    sql = [[select package_name, version_s, abstract, indexed, authors, ]]
+    sql = [[select package_name, doc, version_s, abstract, indexed, authors, ]]
           .. [[licenses, is_original, dep_packages, dep_operators, ]]
           .. [[dep_versions, failed, users.login as uploader_name, ]]
           .. [[orgs.login as org_name, repo_link, ]]
@@ -1795,12 +1807,26 @@ function _M.do_show_package(account, pkg_name)
         pkg_info.dep_info = tab_concat(dep_info, ", ")
     end
 
+    local pkg_doc = pkg_info.doc
+
+    if pkg_doc then
+        local m, err = re_match(pkg_doc, [[<body>(.)</body>]])
+        if m then
+            pkg_doc = m[1]
+        end
+    end
+
+    if pkg_doc and str_len(pkg_doc) < 10 then
+        pkg_doc = nil
+    end
+
     view.show("package_info", {
         pkg_info = pkg_info,
         account = account,
         pkg_name = pkg_name,
         packages = rows,
         packages_count = #rows,
+        pkg_doc = pkg_doc,
     })
 end
 
