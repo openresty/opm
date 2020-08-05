@@ -1810,7 +1810,7 @@ function _M.do_show_package(account, pkg_name)
     local pkg_doc = pkg_info.doc
 
     if pkg_doc then
-        local m, err = re_match(pkg_doc, [[<body>(.+)</body>]])
+        local m, err = re_match(pkg_doc, [[<body>(.+)</body>, 'jo']])
         if m then
             pkg_doc = m[1]
 
