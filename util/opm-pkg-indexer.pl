@@ -485,7 +485,7 @@ sub process_cycle () {
         my $htmlfile = "/opm/tmp/$final_md5.html";
         my $quoted_htmlfile = shell_quote $htmlfile;
 
-        warn "pod2html --noindex $quoted_podfile > $quoted_htmlfile";
+        # warn "pod2html --noindex $quoted_podfile > $quoted_htmlfile";
         if (!shell "pod2html --noindex $quoted_podfile > $quoted_htmlfile") {
             $errstr = "failed to run pod2html for $quoted_podfile";
             err_log $errstr;
