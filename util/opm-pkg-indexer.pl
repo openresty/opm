@@ -481,9 +481,9 @@ sub process_cycle () {
         }
 
         my $podfile = "$name-$ver.opm/pod/$name-$ver/$name-$ver.pod";
-        my $quoted_podfile = shell_quote($podfile);
+        my $quoted_podfile = shell_quote $podfile;
         my $htmlfile = "/opm/tmp/$final_md5.html";
-        my $quoted_htmlfile = shell_quote($htmlfile);
+        my $quoted_htmlfile = shell_quote $htmlfile;
 
         warn "pod2html --noindex $quoted_podfile > $quoted_htmlfile";
         if (!shell "pod2html --noindex $quoted_podfile > $quoted_htmlfile") {

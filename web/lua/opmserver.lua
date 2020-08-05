@@ -884,7 +884,7 @@ do
         end
 
         if not res then
-            ngx.log(ngx.ERR, "fatal response due to query failures", err)
+            ngx.log(ngx.ERR, "fatal response due to query failures")
             return ngx.exit(500)
         end
 
