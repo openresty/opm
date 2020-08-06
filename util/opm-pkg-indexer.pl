@@ -26,6 +26,7 @@ sub gen_backup_file_prefix ();
 sub shell (@);
 sub read_ini ($);
 sub err_log;
+sub shell_quote ($);
 
 my $json_xs = JSON::XS->new;
 
@@ -253,6 +254,7 @@ sub process_cycle () {
         my $dir = $dist_basename;
         if (!-d $dir) {
             $errstr = "directory $dir not found after unpacking $fname";
+            err_log $errstr;
             goto FAIL_UPLOAD;
         }
 
@@ -302,6 +304,7 @@ sub process_cycle () {
                 if ($@) {
                     # failed
                     $errstr = $@;
+                    err_log $errstr;
                     goto FAIL_UPLOAD;
                 }
             }
@@ -310,6 +313,7 @@ sub process_cycle () {
 
             if (!copy($final_file, $dstfile)) {
                 $errstr = "failed to copy $path to $dstfile: $!";
+                err_log $errstr;
                 goto FAIL_UPLOAD;
             }
         }
@@ -415,6 +419,7 @@ sub process_cycle () {
             my $ndeps = @$deps;
             if ($ndeps > $MAX_DEPS) {
                 $errstr = "$inifile: too many dependencies: $ndeps";
+                err_log $errstr;
                 goto FAIL_UPLOAD;
             }
 
@@ -475,6 +480,20 @@ sub process_cycle () {
             }
         }
 
+        my $podfile = "$name-$ver.opm/pod/$name-$ver/$name-$ver.pod";
+        my $quoted_podfile = shell_quote $podfile;
+        my $htmlfile = "/opm/tmp/$final_md5.html";
+        my $quoted_htmlfile = shell_quote $htmlfile;
+
+        # warn "pod2html --noindex $quoted_podfile > $quoted_htmlfile";
+        if (!shell "pod2html --noindex $quoted_podfile > $quoted_htmlfile") {
+            $errstr = "failed to run pod2html for $quoted_podfile";
+            err_log $errstr;
+            goto FAIL_UPLOAD;
+        }
+
+        $htmlfile = File::Spec->rel2abs($quoted_htmlfile);
+
         $dir = "../..";
         chdir $dir or err_log "cannot chdir $dir: $!";
 
@@ -520,6 +539,7 @@ sub process_cycle () {
             dep_operators => \@dep_ops,
             dep_versions => \@dep_vers,
             file => $path,
+            doc_file => $htmlfile,
         };
 
         {
@@ -775,4 +795,20 @@ sub err_log {
     my @args = @_;
     my $ts = gen_timestamp();
     warn "[$ts] ", @args;
+}
+
+sub shell_quote ($) {
+    my $ret = shift;
+
+    if (!defined $ret or $ret eq '') {
+        return "''";
+    }
+
+    if ($ret =~ /[[:cntrl:]]/) {
+        die "shell_quote(): No way to quote string containing control characters\n";
+    }
+
+    $ret =~ s/([#&;`'"|*?~!<>^()\[\]{}\$\\, ])/\\$1/g;
+
+    return $ret;
 }

@@ -90,6 +90,7 @@ create table uploads (
     size integer not null,
     package_name varchar(256) not null,
     abstract text,
+    doc text,
 
     version_v integer[] not null,
     version_s varchar(128) not null,
@@ -119,7 +120,8 @@ create function uploads_trigger() returns trigger as $$
 begin
       new.ts_idx :=
          setweight(to_tsvector('pg_catalog.english', coalesce(new.package_name,'')), 'A')
-         || setweight(to_tsvector('pg_catalog.english', coalesce(new.abstract,'')), 'D');
+         || setweight(to_tsvector('pg_catalog.english', coalesce(new.abstract,'')), 'B')
+         || setweight(to_tsvector('pg_catalog.english', coalesce(new.doc,'')), 'D');
       return new;
 end
 $$ language plpgsql;
