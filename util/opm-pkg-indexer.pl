@@ -30,7 +30,7 @@ sub shell_quote ($);
 
 my $json_xs = JSON::XS->new;
 
-my $version = '0.0.5';
+my $version = '0.0.6';
 
 my %opts;
 getopts("di:", \%opts) or die;
