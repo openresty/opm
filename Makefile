@@ -6,7 +6,7 @@ opm_pkg_indexer = $(abspath util/opm-pkg-indexer.pl) -i 1
 tt2_files := $(sort $(wildcard web/templates/*.tt2))
 templates_lua = web/lua/opmserver/templates.lua
 md2html = ./util/fmtMd.js
-md_files := $(wildcard web/docs/md/*.md) 
+md_files := $(wildcard web/docs/md/*.md)
 html_files := $(patsubst web/docs/md/%.md,web/docs/html/%.html,$(md_files))
 
 INSTALL ?= install
