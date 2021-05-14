@@ -129,7 +129,7 @@ function _M.do_upload()
 
     local token = ngx_var.http_x_token
 
-    if not re_find(token, [[^[a-f0-9]{40}$]], "ijo") then
+    if not re_find(token, [[^[a-z0-9_]{40,255}$]], "ijo") then
         return log_and_out_err(ctx, 400, "bad github personal access token.")
     end
 

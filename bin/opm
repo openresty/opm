@@ -812,7 +812,7 @@ sub do_upload {
         err "$rc_file: no \"github_token\" specified.\n";
     }
 
-    if ($token !~ /^[a-f0-9]{40}$/i) {
+    if ($token !~ /^[a-z0-9_]{40,255}$/i) {
         err "$rc_file: bad \"github_token\" value: $token\n";
     }
 
