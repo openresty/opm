@@ -31,4 +31,63 @@
 <section>
 [% PROCESS "package_list.tt2" %]
 </section>
+
+<script>
+$(document).ready(function(){
+    $('.package_row .delete-pkg').click(function(){
+        var pkg_name=$(this).attr('item-pkg-name');
+        var pkg_account=$(this).attr('item-pkg-account');
+        if(confirm('delete package ' + pkg_name + '?')) {
+            var params = {
+                pkg_name: pkg_name,
+                pkg_account: pkg_account,
+            };
+            $.ajax({
+                type: "POST",
+                url: '/api_delete_pkg/',
+                dataType: "json",
+                data: JSON.stringify(params),
+                success:function(resp){
+                    var status = resp.status;
+                    if (status == 0) {
+                        alert(resp.data);
+                    }
+                    else {
+                        alert(resp.msg);
+                    }
+                    window.location.reload();
+                }
+            });
+        }
+    });
+
+    $('.package_row .cancel-deleting-pkg').click(function(){
+        var pkg_name=$(this).attr('item-pkg-name');
+        var pkg_account=$(this).attr('item-pkg-account');
+        if(confirm('cancel deleting package ' + pkg_name + '?')) {
+            var params = {
+                pkg_name: pkg_name,
+                pkg_account: pkg_account,
+            };
+            $.ajax({
+                type: "POST",
+                url: '/api_cancel_deleting_pkg/',
+                dataType: "json",
+                data: JSON.stringify(params),
+                success:function(resp){
+                    var status = resp.status;
+                    if (status == 0) {
+                        alert(resp.data);
+                    }
+                    else {
+                        alert(resp.msg);
+                    }
+                    window.location.reload();
+                }
+            });
+        }
+    });
+});
+</script>
+
 </div>

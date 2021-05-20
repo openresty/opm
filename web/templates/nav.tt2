@@ -13,7 +13,12 @@
     <input type="text" placeholder="Search Packages ..." name="q" value="[% query_words %]">
 </form>
 <nav class="nav_panel">
-    <a href="/docs">Docs </a>
-
+    <a href="/docs">Docs</a>
+    [%- IF curr_user %]
+    <span><a href="[% curr_user.profile_url | html %]">[% curr_user.login | html %]</a></span>
+    <a href="/logout">Logout</a>
+    [%- ELSE %]
+    <a href="/login">Sign In</a>
+    [%- END %]
 </nav>
 </div>

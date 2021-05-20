@@ -32,6 +32,19 @@ create table users (
     updated_at timestamp with time zone not null default now()
 );
 
+drop table if exists users_sessions cascade;
+
+create table users_sessions (
+    id serial primary key,
+    user_id integer not null,
+    token text not null unique,
+    ip text not null,
+    user_agent text,
+    last_active_at timestamp with time zone default now(),
+    created_at timestamp with time zone not null default now(),
+    updated_at timestamp with time zone not null default now()
+);
+
 drop table if exists orgs cascade;
 
 -- for github organizations
@@ -107,11 +120,12 @@ create table uploads (
     client_addr inet not null,
     failed boolean not null default FALSE,
     indexed boolean not null default FALSE,
-
+    is_deleted boolean,
     ts_idx tsvector,
 
     created_at timestamp with time zone not null default now(),
-    updated_at timestamp with time zone not null default now()
+    updated_at timestamp with time zone not null default now(),
+    deleted_at timestamp with time zone
 );
 
 drop function if exists uploads_trigger() cascade;
