@@ -2167,6 +2167,10 @@ local function get_current_user()
     local sql = "select * from users_sessions where token = "
                 .. quote_sql_str(token) .. " limit 1"
     local res, err = query_db(sql)
+    if err then
+        log.error(err)
+        return nil, "query db failed"
+    end
 
     if not res or #res == 0 then
         return nil, "session not found"
@@ -2175,6 +2179,11 @@ local function get_current_user()
     local user_id = res[1].user_id
     sql = "select * from users where id = " .. user_id
     res, err = query_db(sql)
+    if err then
+        log.error(err)
+        return nil, "query db failed"
+    end
+
     if not res then
         return nil, "user not found"
     end
@@ -2275,8 +2284,10 @@ local function get_curr_session(opmid)
 
     local res, err = query_db(sql)
     if err then
+        log.error(err)
         return nil, "query failed"
     end
+
     if not res or #res == 0 then
         return nil, "session not found"
     end

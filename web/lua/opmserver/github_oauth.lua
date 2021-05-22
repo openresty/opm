@@ -16,7 +16,7 @@ local str_find = string.find
 local client_id = github_oauth.client_id
 local client_secret = github_oauth.client_secret
 local env = common_conf.env
-local github_oauth_host = "https://stage.openresty.com.cn"
+local github_oauth_host = github_oauth.host
 
 
 local function http_request(url, params)

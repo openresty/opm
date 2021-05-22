@@ -3,7 +3,7 @@ local _M = {}
 
 local log = require("opmserver.log")
 local query_db = require("opmserver.db").query
-local q = require("opmserver.db").quote
+
 
 local ngx = ngx
 local ngx_time = ngx.time
