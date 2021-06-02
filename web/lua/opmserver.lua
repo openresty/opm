@@ -27,6 +27,7 @@ local resty_cookie = require("resty.cookie")
 local common_conf = require("opmserver.conf").load_entry("common")
 
 
+local ngx_time = ngx.time
 local re_find = ngx.re.find
 local re_match = ngx.re.match
 local re_gsub = ngx.re.gsub
@@ -57,6 +58,7 @@ local prefix = ngx.config.prefix()
 local incoming_directory = "/opm/incoming"
 local final_directory = "/opm/final"
 local env = common_conf.env
+local deferred_deletion_hours = common_conf.deferred_deletion_hours or 24
 local LOGIN_COOKIE_MAX_TTL = 86400 * 14 -- two weeks
 local cookie_tab = {
     key = "OPMID",
@@ -2418,7 +2420,10 @@ function _M.do_delete_pkg(cancel)
         action_str = "cancel deleting pkg"
     end
 
+    local curr_time = ngx_time()
+
     sql = "update uploads set is_deleted = " .. is_deleted
+          .. ", deleted_at_time = " .. curr_time
           .. " where package_name = "
           .. q(pkg_name) .. " and " .. (org_id and
           ("org_account = " .. org_id) or ("uploader = " .. curr_user.id))
@@ -2428,7 +2433,15 @@ function _M.do_delete_pkg(cancel)
         return exit_err(action_str .. " failed")
     end
 
-    return exit_ok(action_str .. " successfully")
+    if cancel then
+        action_str = action_str .. " successfully"
+
+    else
+        action_str = "This pkg will be deleted in "
+                     .. deferred_deletion_hours .. " hours"
+    end
+
+    return exit_ok(action_str)
 end
 
 

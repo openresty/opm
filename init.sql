@@ -125,7 +125,7 @@ create table uploads (
 
     created_at timestamp with time zone not null default now(),
     updated_at timestamp with time zone not null default now(),
-    deleted_at timestamp with time zone
+    deleted_at_time integer
 );
 
 drop function if exists uploads_trigger() cascade;

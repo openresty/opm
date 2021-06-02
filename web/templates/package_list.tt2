@@ -28,7 +28,7 @@
         [%- END %]
 
         [%- IF row.is_deleted %]
-            <span class="failed">deleting</span>
+            <span class="failed">pending deleting</span>
             <span class="cancel-deleting-pkg" item-pkg-name="[% row.package_name %]" item-pkg-account="[% account %]" title="cancel deleting this pkg"><img src="/images/cancel.png" class="cancel-deleting-btn"></span>
         [%- END %]
 

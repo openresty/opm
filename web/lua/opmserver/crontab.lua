@@ -3,6 +3,8 @@ local _M = {}
 
 local log = require("opmserver.log")
 local query_db = require("opmserver.db").query
+local common_conf = require("opmserver.conf").load_entry("common")
+local run_shell = require("resty.shell").run
 
 
 local ngx = ngx
@@ -10,8 +12,47 @@ local ngx_time = ngx.time
 local timer_every = ngx.timer.every
 
 
+local env = common_conf.env
+local deferred_deletion_hours = common_conf.deferred_deletion_hours or 24
+deferred_deletion_hours = tonumber(deferred_deletion_hours) or 24
+
+
+local function move_pkg_files(pkg)
+    local package_name = pkg.package_name
+    local uploader_name = pkg.uploader_name
+    local version = pkg.version_s
+    local tar_path = uploader_name .. "/" .. package_name
+                     .. "-" .. version .. ".opm.tar.gz"
+    local final_path = "/opm/final/" .. tar_path
+    local bak_path = "/opm/bak/" .. tar_path
+
+    local cmd = {"mkdir", "-p", "/opm/bak/" .. uploader_name}
+    local ok, stdout, stderr, reason, status = run_shell(cmd)
+    if not ok then
+        log.error("failed to make dir, stdout: ", stdout,
+                ", stderr: ", stderr,
+                ", reason: ", reason, ", status: ", status)
+
+        return nil, stderr or reason or "failed to run shell"
+    end
+
+    cmd = {"mv", final_path, bak_path}
+    ok, stdout, stderr, reason, status = run_shell(cmd)
+    if not ok then
+        log.error("failed to mv file, stdout: ", stdout,
+                ", stderr: ", stderr,
+                ", reason: ", reason, ", status: ", status)
+
+        return nil, stderr or reason or "failed to run shell"
+    end
+
+    return true
+end
+
+
 local function check_deferred_deletions()
     local sql = [[select uploads.id as pkg_id, package_name, indexed]]
+          .. [[, version_s, deleted_at_time]]
           .. [[, failed, users.login as uploader_name]]
           .. [[, orgs.login as org_name from uploads]]
           .. [[ left join users on uploads.uploader = users.id]]
@@ -23,26 +64,35 @@ local function check_deferred_deletions()
         return nil, err
     end
 
+    local curr_time = ngx_time()
     local pkg_list = res
     for _, pkg in ipairs(pkg_list) do
-        local pkg_id = pkg.pkg_id
-        sql = "delete from uploads where id = " .. pkg_id
-        local res, err = query_db(sql)
-        if not res then
-            log.error("delete pkg [", pkg_id, "] failed: ", err)
+        local deleted_at_time = pkg.deleted_at_time
+        if deleted_at_time + deferred_deletion_hours * 3600 < curr_time then
+            local pkg_id = pkg.pkg_id
+            sql = "delete from uploads where id = " .. pkg_id
+            local res, err = query_db(sql)
+            if not res then
+                log.error("delete pkg [", pkg_id, "] failed: ", err)
+                return
+            end
+
+            local ok, err = move_pkg_files(pkg)
+            if not ok then
+                log.error('move pkg files failed: ', err)
+                return
+            end
+
+            log.warn("delete pkg successfully: pkg name:", pkg.package_name,
+                       ", uploader: ", pkg.uploader_name)
         end
-
-        -- TODO: remove related files
-
-        log.error("delete pkg successfully: pkg name:", pkg.package_name,
-                   ", uploader: ", pkg.uploader_name)
     end
 end
 
 
 local jobs = {
     {
-        interval = 60 * 60 * 10,
+        interval = (env == 'dev') and 10 or 120,
         handler = check_deferred_deletions,
     },
 }
