@@ -5,6 +5,7 @@ local log = require("opmserver.log")
 local query_db = require("opmserver.db").query
 local common_conf = require("opmserver.conf").load_entry("common")
 local run_shell = require("resty.shell").run
+local shell_escape = require("opmserver.utils").shell_escape
 
 
 local ngx = ngx
@@ -18,8 +19,8 @@ deferred_deletion_hours = tonumber(deferred_deletion_hours) or 24
 
 
 local function move_pkg_files(pkg)
-    local package_name = pkg.package_name
-    local uploader_name = pkg.uploader_name
+    local package_name = shell_escape(pkg.package_name)
+    local uploader_name = shell_escape(pkg.uploader_name)
     local version = pkg.version_s
     local tar_path = uploader_name .. "/" .. package_name
                      .. "-" .. version .. ".opm.tar.gz"

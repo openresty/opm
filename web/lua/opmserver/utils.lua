@@ -13,6 +13,7 @@ local ngx = ngx
 local ngx_exit = ngx.exit
 local read_body = ngx.req.read_body
 local get_body_data = ngx.req.get_body_data
+local re_find = ngx.re.find
 local re_gsub = ngx.re.gsub
 local io_open = io.open
 local type = type
@@ -127,6 +128,23 @@ end
 
 function _M.exit_err(msg)
     return _output({ status = 1, msg = msg })
+end
+
+
+function _M.shell_escape(s, quote)
+    local typ = type(s)
+    if typ == "string" then
+        if re_find(s, [=[[^a-zA-Z0-9._+:@%/-]]=]) then
+            s = re_gsub(s, [[\\]], [[\\\\]], 'jo')
+            s = re_gsub(s, [=[[ {}\[\]\(\)"'`#&,;<>\?\$\^\|!~]]=], [[\$0]], 'jo')
+        end
+    end
+
+    if quote then
+        s = quote .. s .. quote
+    end
+
+    return s
 end
 
 
