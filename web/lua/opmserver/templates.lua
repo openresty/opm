@@ -315,7 +315,7 @@ template_map['footer.tt2'] = function (context)
 
 i = i + 1 output[i] = '\n<p>'
 -- line 2 "footer.tt2"
-i = i + 1 output[i] = 'Copyright © 2016-2020 Yichun Zhang (agentzh)'
+i = i + 1 output[i] = 'Copyright © 2016-2021 Yichun Zhang (agentzh)'
 i = i + 1 output[i] = '</p>\n<p>'
 -- line 3 "footer.tt2"
 i = i + 1 output[i] = '100% Powered by OpenResty and PostgreSQL'
@@ -328,7 +328,7 @@ i = i + 1 output[i] = 'view the source code of this site'
 i = i + 1 output[i] = '</a>'
 -- line 4 "footer.tt2"
 i = i + 1 output[i] = ')'
-i = i + 1 output[i] = '</p>\n<p>京ICP备16021991号</p>\n'
+i = i + 1 output[i] = '</p>\n<p>京ICP备16021991号</p>'
 
     return output
 end
@@ -368,19 +368,48 @@ template_map['layout.tt2'] = function (context)
     local output = {}
     local i = 0
 
-i = i + 1 output[i] = '<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="utf-8">\n    <title>OPM - OpenResty Package Manager</title>\n    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=2.0, user-scalable=yes">\n    <link rel="stylesheet" type="text/css" href="/css/main.css">\n</head>\n<body>\n    <div class="content">\n        <header class="header">\n        '
--- line 12 "layout.tt2"
+i = i + 1 output[i] = '<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="utf-8">\n    <title>OPM - OpenResty Package Manager</title>\n    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=2.0, user-scalable=yes">\n    <link rel="stylesheet" type="text/css" href="/css/main.css">\n    <script src="/js/jquery.min.js"></script>\n</head>\n<body>\n    <div class="content">\n        <header class="header">\n        '
+-- line 13 "layout.tt2"
 i = i + 1 output[i] = context.process(context, 'nav.tt2')
 i = i + 1 output[i] = '\n        </header>\n\n        <main class="main_page">\n            '
--- line 16 "layout.tt2"
+-- line 17 "layout.tt2"
 i = i + 1 output[i] = stash_get(stash, 'main_html')
 i = i + 1 output[i] = '\n        </main>\n    </div>\n\n    <div class="footer">\n    '
--- line 21 "layout.tt2"
+-- line 22 "layout.tt2"
 i = i + 1 output[i] = context.process(context, 'footer.tt2')
-i = i + 1 output[i] = '\n    </div>\n\n</body>\n\n'
--- line 26 "layout.tt2"
+i = i + 1 output[i] = '\n    </div>\n\n'
+-- line 25 "layout.tt2"
 i = i + 1 output[i] = context.process(context, 'analytics.tt2')
-i = i + 1 output[i] = '\n\n</html>\n'
+i = i + 1 output[i] = '\n</body>\n</html>\n'
+
+    return output
+end
+
+-- login.tt2
+template_map['login.tt2'] = function (context)
+    if not context then
+        return error("Lemplate function called without context\n")
+    end
+    local stash = context.stash
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = '\n<div class="main_col">\n<div class="split_header">\n    <h2>Sign In</h2>\n</div>\n\n<div class="sign-in">\n    <a class="button" href="'
+-- line 8 "login.tt2"
+
+-- FILTER
+local value
+do
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = stash_get(stash, 'github_login_url')
+
+    value = context.filter(output, 'html', {})
+end
+i = i + 1 output[i] = value
+
+i = i + 1 output[i] = '">Sign in with Github</a>\n</div>\n\n</div>\n'
 
     return output
 end
@@ -397,7 +426,45 @@ template_map['nav.tt2'] = function (context)
 i = i + 1 output[i] = '\n<div class="header_inner">\n<a href="https://openresty.org">\n    <img src="https://openresty.org/images/logo.png" width="64">\n</a>\n<nav class="logo_panel">\n<a href="/">\n    OPM\n</a>\n</nav>\n\n<form method="GET" action="/search" class="header_search">\n    <input type="text" placeholder="Search Packages ..." name="q" value="'
 -- line 13 "nav.tt2"
 i = i + 1 output[i] = stash_get(stash, 'query_words')
-i = i + 1 output[i] = '">\n</form>\n<nav class="nav_panel">\n    <a href="/docs">Docs </a>\n\n</nav>\n</div>\n'
+i = i + 1 output[i] = '">\n</form>\n<nav class="nav_panel">\n    <a href="/docs">Docs</a>'
+-- line 22 "nav.tt2"
+if tt2_true(stash_get(stash, 'curr_user')) then
+i = i + 1 output[i] = '\n    <span><a href="'
+-- line 18 "nav.tt2"
+
+-- FILTER
+local value
+do
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = stash_get(stash, {'curr_user', 0, 'profile_url', 0})
+
+    value = context.filter(output, 'html', {})
+end
+i = i + 1 output[i] = value
+
+i = i + 1 output[i] = '">'
+-- line 18 "nav.tt2"
+
+-- FILTER
+local value
+do
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = stash_get(stash, {'curr_user', 0, 'login', 0})
+
+    value = context.filter(output, 'html', {})
+end
+i = i + 1 output[i] = value
+
+i = i + 1 output[i] = '</a></span>\n    <a href="/logout">Logout</a>'
+else
+i = i + 1 output[i] = '\n    <a href="/login">Sign In</a>'
+end
+
+i = i + 1 output[i] = '\n</nav>\n</div>\n'
 
     return output
 end
@@ -510,7 +577,7 @@ template_map['package_list.tt2'] = function (context)
     local i = 0
 
 i = i + 1 output[i] = '\n<ul class="package_list">\n'
--- line 47 "package_list.tt2"
+-- line 56 "package_list.tt2"
 
 -- FOREACH
 do
@@ -539,11 +606,11 @@ do
         stash['row'] = value
 i = i + 1 output[i] = '\n<li class="package_row">\n\n    '
 -- line 7 "package_list.tt2"
-stash_set(stash, 'uploader', stash_get(stash, {'row', 0, 'uploader_name', 0}));
+stash_set(stash, 'pkg_uploader_name', stash_get(stash, {'row', 0, 'uploader_name', 0}));
 -- line 7 "package_list.tt2"
 stash_set(stash, 'org', stash_get(stash, {'row', 0, 'org_name', 0}));
 -- line 7 "package_list.tt2"
-stash_set(stash, 'account', stash_get(stash, 'uploader'));
+stash_set(stash, 'account', stash_get(stash, 'pkg_uploader_name'));
 -- line 7 "package_list.tt2"
 if tt2_true(stash_get(stash, 'org')) then
 -- line 7 "package_list.tt2"
@@ -583,7 +650,31 @@ end
 i = i + 1 output[i] = value
 
 i = i + 1 output[i] = '\n        </span>'
+-- line 28 "package_list.tt2"
+if tt2_true(tt2_true(tt2_true(tt2_true(stash_get(stash, 'uploader_name')) and tt2_true(tt2_not(stash_get(stash, {'row', 0, 'is_deleted', 0})))) and tt2_true(stash_get(stash, 'curr_user'))) and tt2_true(stash_get(stash, 'uploader_name') == stash_get(stash, {'curr_user', 0, 'login', 0}))) then
+i = i + 1 output[i] = '\n        <span class="delete-pkg" item-pkg-name="'
+-- line 27 "package_list.tt2"
+i = i + 1 output[i] = stash_get(stash, {'row', 0, 'package_name', 0})
+i = i + 1 output[i] = '" item-pkg-account="'
+-- line 27 "package_list.tt2"
+i = i + 1 output[i] = stash_get(stash, 'account')
+i = i + 1 output[i] = '" title="delete this pkg"><img src="/images/delete.png" class="delete-btn"></span>'
+end
+
+i = i + 1 output[i] = '\n'
+-- line 33 "package_list.tt2"
+if tt2_true(stash_get(stash, {'row', 0, 'is_deleted', 0})) then
+i = i + 1 output[i] = '\n            <span class="failed">pending deleting</span>\n            <span class="cancel-deleting-pkg" item-pkg-name="'
 -- line 32 "package_list.tt2"
+i = i + 1 output[i] = stash_get(stash, {'row', 0, 'package_name', 0})
+i = i + 1 output[i] = '" item-pkg-account="'
+-- line 32 "package_list.tt2"
+i = i + 1 output[i] = stash_get(stash, 'account')
+i = i + 1 output[i] = '" title="cancel deleting this pkg"><img src="/images/cancel.png" class="cancel-deleting-btn"></span>'
+end
+
+i = i + 1 output[i] = '\n'
+-- line 41 "package_list.tt2"
 if tt2_true(stash_get(stash, {'row', 0, 'indexed', 0})) then
 i = i + 1 output[i] = '\n'
 elseif tt2_true(stash_get(stash, {'row', 0, 'failed', 0})) then
@@ -593,16 +684,16 @@ i = i + 1 output[i] = '\n        <span class="pending">Pending</span>'
 end
 
 i = i + 1 output[i] = '\n        <span class="author">\n            by \n            <a href="/uploader/'
--- line 35 "package_list.tt2"
-i = i + 1 output[i] = stash_get(stash, 'uploader')
+-- line 44 "package_list.tt2"
+i = i + 1 output[i] = stash_get(stash, 'pkg_uploader_name')
 i = i + 1 output[i] = '/">\n                '
--- line 36 "package_list.tt2"
-i = i + 1 output[i] = stash_get(stash, 'uploader')
+-- line 45 "package_list.tt2"
+i = i + 1 output[i] = stash_get(stash, 'pkg_uploader_name')
 i = i + 1 output[i] = '\n            </a>\n        </span>\n    </div>\n    <div class="summary">\n        '
--- line 41 "package_list.tt2"
+-- line 50 "package_list.tt2"
 i = i + 1 output[i] = stash_get(stash, {'row', 0, 'abstract', 0})
 i = i + 1 output[i] = '\n        <span class="updated_at">\n            '
--- line 43 "package_list.tt2"
+-- line 52 "package_list.tt2"
 
 -- FILTER
 local value
@@ -624,7 +715,7 @@ i = i + 1 output[i] = '\n        </span>\n    </div>\n</li>'
 end
 
 i = i + 1 output[i] = '\n</ul>\n\n'
--- line 50 "package_list.tt2"
+-- line 59 "package_list.tt2"
 i = i + 1 output[i] = stash_get(stash, 'page_info')
 i = i + 1 output[i] = '\n'
 
@@ -661,6 +752,35 @@ i = i + 1 output[i] = '\n<div class="main_col">\n<div class="split_header">\n   
 -- line 7 "search.tt2"
 i = i + 1 output[i] = context.process(context, 'package_list.tt2')
 i = i + 1 output[i] = '\n</div>\n'
+
+    return output
+end
+
+-- success.tt2
+template_map['success.tt2'] = function (context)
+    if not context then
+        return error("Lemplate function called without context\n")
+    end
+    local stash = context.stash
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = '\n<div class="main_col">\n<div class="split_header">\n    <h2>Success</h2>\n</div>\n\n<div class="success_info">\n    '
+-- line 8 "success.tt2"
+
+-- FILTER
+local value
+do
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = stash_get(stash, 'success_info')
+
+    value = context.filter(output, 'html', {})
+end
+i = i + 1 output[i] = value
+
+i = i + 1 output[i] = '\n</div>\n\n</div>\n'
 
     return output
 end
@@ -730,7 +850,7 @@ end
 i = i + 1 output[i] = '\n    </div>\n</div>\n\n<h3>Packages</h3>\n\n<section>\n'
 -- line 32 "uploader.tt2"
 i = i + 1 output[i] = context.process(context, 'package_list.tt2')
-i = i + 1 output[i] = '\n</section>\n</div>\n'
+i = i + 1 output[i] = '\n</section>\n\n<script>\n$(document).ready(function(){\n    $(\'.package_row .delete-pkg\').click(function(){\n        var pkg_name=$(this).attr(\'item-pkg-name\');\n        var pkg_account=$(this).attr(\'item-pkg-account\');\n        if(confirm(\'delete package \' + pkg_name + \'?\')) {\n            var params = {\n                pkg_name: pkg_name,\n                pkg_account: pkg_account,\n            };\n            $.ajax({\n                type: "POST",\n                url: \'/api_delete_pkg/\',\n                dataType: "json",\n                data: JSON.stringify(params),\n                success:function(resp){\n                    var status = resp.status;\n                    if (status == 0) {\n                        alert(resp.data);\n                    }\n                    else {\n                        alert(resp.msg);\n                    }\n                    window.location.reload();\n                }\n            });\n        }\n    });\n\n    $(\'.package_row .cancel-deleting-pkg\').click(function(){\n        var pkg_name=$(this).attr(\'item-pkg-name\');\n        var pkg_account=$(this).attr(\'item-pkg-account\');\n        if(confirm(\'cancel deleting package \' + pkg_name + \'?\')) {\n            var params = {\n                pkg_name: pkg_name,\n                pkg_account: pkg_account,\n            };\n            $.ajax({\n                type: "POST",\n                url: \'/api_cancel_deleting_pkg/\',\n                dataType: "json",\n                data: JSON.stringify(params),\n                success:function(resp){\n                    var status = resp.status;\n                    if (status == 0) {\n                        alert(resp.data);\n                    }\n                    else {\n                        alert(resp.msg);\n                    }\n                    window.location.reload();\n                }\n            });\n        }\n    });\n});\n</script>\n\n</div>\n'
 
     return output
 end
