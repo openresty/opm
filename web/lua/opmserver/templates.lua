@@ -577,7 +577,7 @@ template_map['package_list.tt2'] = function (context)
     local i = 0
 
 i = i + 1 output[i] = '\n<ul class="package_list">\n'
--- line 56 "package_list.tt2"
+-- line 59 "package_list.tt2"
 
 -- FOREACH
 do
@@ -650,31 +650,36 @@ end
 i = i + 1 output[i] = value
 
 i = i + 1 output[i] = '\n        </span>'
--- line 28 "package_list.tt2"
-if tt2_true(tt2_true(tt2_true(tt2_true(stash_get(stash, 'uploader_name')) and tt2_true(tt2_not(stash_get(stash, {'row', 0, 'is_deleted', 0})))) and tt2_true(stash_get(stash, 'curr_user'))) and tt2_true(stash_get(stash, 'uploader_name') == stash_get(stash, {'curr_user', 0, 'login', 0}))) then
+-- line 36 "package_list.tt2"
+if tt2_true(tt2_true(tt2_true(tt2_true(stash_get(stash, 'uploader_page')) and tt2_true(stash_get(stash, 'curr_user'))) and tt2_true(stash_get(stash, 'uploader_name'))) and tt2_true(stash_get(stash, 'uploader_name') == stash_get(stash, {'curr_user', 0, 'login', 0}))) then
+i = i + 1 output[i] = '\n'
+-- line 30 "package_list.tt2"
+if tt2_true(tt2_not(stash_get(stash, {'row', 0, 'is_deleted', 0}))) then
 i = i + 1 output[i] = '\n        <span class="delete-pkg" item-pkg-name="'
--- line 27 "package_list.tt2"
+-- line 29 "package_list.tt2"
 i = i + 1 output[i] = stash_get(stash, {'row', 0, 'package_name', 0})
 i = i + 1 output[i] = '" item-pkg-account="'
--- line 27 "package_list.tt2"
+-- line 29 "package_list.tt2"
 i = i + 1 output[i] = stash_get(stash, 'account')
 i = i + 1 output[i] = '" title="delete this pkg"><img src="/images/delete.png" class="delete-btn"></span>'
 end
 
-i = i + 1 output[i] = '\n'
--- line 33 "package_list.tt2"
+-- line 34 "package_list.tt2"
 if tt2_true(stash_get(stash, {'row', 0, 'is_deleted', 0})) then
 i = i + 1 output[i] = '\n            <span class="failed">pending deleting</span>\n            <span class="cancel-deleting-pkg" item-pkg-name="'
--- line 32 "package_list.tt2"
+-- line 33 "package_list.tt2"
 i = i + 1 output[i] = stash_get(stash, {'row', 0, 'package_name', 0})
 i = i + 1 output[i] = '" item-pkg-account="'
--- line 32 "package_list.tt2"
+-- line 33 "package_list.tt2"
 i = i + 1 output[i] = stash_get(stash, 'account')
 i = i + 1 output[i] = '" title="cancel deleting this pkg"><img src="/images/cancel.png" class="cancel-deleting-btn"></span>'
 end
 
 i = i + 1 output[i] = '\n'
--- line 41 "package_list.tt2"
+end
+
+i = i + 1 output[i] = '\n'
+-- line 44 "package_list.tt2"
 if tt2_true(stash_get(stash, {'row', 0, 'indexed', 0})) then
 i = i + 1 output[i] = '\n'
 elseif tt2_true(stash_get(stash, {'row', 0, 'failed', 0})) then
@@ -684,16 +689,16 @@ i = i + 1 output[i] = '\n        <span class="pending">Pending</span>'
 end
 
 i = i + 1 output[i] = '\n        <span class="author">\n            by \n            <a href="/uploader/'
--- line 44 "package_list.tt2"
+-- line 47 "package_list.tt2"
 i = i + 1 output[i] = stash_get(stash, 'pkg_uploader_name')
 i = i + 1 output[i] = '/">\n                '
--- line 45 "package_list.tt2"
+-- line 48 "package_list.tt2"
 i = i + 1 output[i] = stash_get(stash, 'pkg_uploader_name')
 i = i + 1 output[i] = '\n            </a>\n        </span>\n    </div>\n    <div class="summary">\n        '
--- line 50 "package_list.tt2"
+-- line 53 "package_list.tt2"
 i = i + 1 output[i] = stash_get(stash, {'row', 0, 'abstract', 0})
 i = i + 1 output[i] = '\n        <span class="updated_at">\n            '
--- line 52 "package_list.tt2"
+-- line 55 "package_list.tt2"
 
 -- FILTER
 local value
@@ -715,7 +720,7 @@ i = i + 1 output[i] = '\n        </span>\n    </div>\n</li>'
 end
 
 i = i + 1 output[i] = '\n</ul>\n\n'
--- line 59 "package_list.tt2"
+-- line 62 "package_list.tt2"
 i = i + 1 output[i] = stash_get(stash, 'page_info')
 i = i + 1 output[i] = '\n'
 

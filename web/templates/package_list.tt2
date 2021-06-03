@@ -23,13 +23,16 @@
         <span class="version_name">
             [% row.version_s | html %]
         </span>
-        [%- IF uploader_name and not row.is_deleted and curr_user and uploader_name == curr_user.login %]
+        [%- IF uploader_page and curr_user and uploader_name and uploader_name == curr_user.login %]
+
+        [%- IF not row.is_deleted %]
         <span class="delete-pkg" item-pkg-name="[% row.package_name %]" item-pkg-account="[% account %]" title="delete this pkg"><img src="/images/delete.png" class="delete-btn"></span>
         [%- END %]
-
         [%- IF row.is_deleted %]
             <span class="failed">pending deleting</span>
             <span class="cancel-deleting-pkg" item-pkg-name="[% row.package_name %]" item-pkg-account="[% account %]" title="cancel deleting this pkg"><img src="/images/cancel.png" class="cancel-deleting-btn"></span>
+        [%- END %]
+
         [%- END %]
 
         [%- IF row.indexed %]

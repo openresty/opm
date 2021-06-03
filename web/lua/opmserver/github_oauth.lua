@@ -149,7 +149,7 @@ function _M.auth(code)
         return nil, 'get access_token failed'
     end
 
-    log.error('token_info:', json_encode(token_info))
+    log.info('token_info:', json_encode(token_info))
 
     local scope = token_info.scope
     if not scope or not str_find(scope, "read:org", nil, true) then
@@ -164,7 +164,7 @@ function _M.auth(code)
         return nil, "request github user profile failed: " .. err
     end
 
-    log.warn("user_info: ", json_encode(user_info))
+    log.info("user_info: ", json_encode(user_info))
 
     return user_info, nil, access_token
 end

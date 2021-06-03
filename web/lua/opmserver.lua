@@ -1885,6 +1885,7 @@ function _M.do_show_uploader(uploader_name)
     local packages = query_db(sql)
 
     view.show("uploader", {
+        uploader_page = true,
         uploader = uploader,
         uploader_name = uploader_name,
         packages = packages,
