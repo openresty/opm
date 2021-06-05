@@ -58,7 +58,7 @@ local prefix = ngx.config.prefix()
 local incoming_directory = "/opm/incoming"
 local final_directory = "/opm/final"
 local env = common_conf.env
-local deferred_deletion_hours = common_conf.deferred_deletion_hours or 24
+local deferred_deletion_days = common_conf.deferred_deletion_days or 3
 local LOGIN_COOKIE_MAX_TTL = 86400 * 14 -- two weeks
 local cookie_tab = {
     key = "OPMID",
@@ -2439,7 +2439,7 @@ function _M.do_delete_pkg(cancel)
 
     else
         action_str = "This pkg will be deleted in "
-                     .. deferred_deletion_hours .. " hours"
+                     .. deferred_deletion_days .. " days"
     end
 
     return exit_ok(action_str)

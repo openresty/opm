@@ -14,8 +14,8 @@ local timer_every = ngx.timer.every
 
 
 local env = common_conf.env
-local deferred_deletion_hours = common_conf.deferred_deletion_hours or 24
-deferred_deletion_hours = tonumber(deferred_deletion_hours) or 24
+local deferred_deletion_days = common_conf.deferred_deletion_days or 3
+local deferred_deletion_seconds = deferred_deletion_days * 86400
 
 
 local function move_pkg_files(pkg)
@@ -69,7 +69,7 @@ local function check_deferred_deletions()
     local pkg_list = res
     for _, pkg in ipairs(pkg_list) do
         local deleted_at_time = pkg.deleted_at_time
-        if deleted_at_time + deferred_deletion_hours * 3600 < curr_time then
+        if deleted_at_time + deferred_deletion_seconds <= curr_time then
             local pkg_id = pkg.pkg_id
             sql = "delete from uploads where id = " .. pkg_id
             local res, err = query_db(sql)
@@ -85,7 +85,8 @@ local function check_deferred_deletions()
             end
 
             log.warn("delete pkg successfully: pkg name:", pkg.package_name,
-                       ", uploader: ", pkg.uploader_name)
+                     ", version:", pkg.version_s,
+                     ", uploader: ", pkg.uploader_name)
         end
     end
 end
