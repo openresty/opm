@@ -94,7 +94,9 @@ install:
 	$(CP) -r bin $(DESTDIR)bin
 	$(CP) -r util $(DESTDIR)util
 	$(CP) -r web/conf $(DESTDIR)web/conf
+	rm -f $(DESTDIR)web/conf/config.ini
 	$(CP) -r web/css $(DESTDIR)web/css
+	$(CP) -r web/js $(DESTDIR)web/js
 	$(CP) -r web/images $(DESTDIR)web/images
 	$(CP) -r web/docs/ $(DESTDIR)web/docs/
 	$(CP) -r web/lua $(DESTDIR)web/lua

@@ -5,6 +5,7 @@
     <title>OPM - OpenResty Package Manager</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=2.0, user-scalable=yes">
     <link rel="stylesheet" type="text/css" href="/css/main.css">
+    <script src="/js/jquery.min.js"></script>
 </head>
 <body>
     <div class="content">
@@ -21,8 +22,6 @@
     [% PROCESS "footer.tt2" %]
     </div>
 
-</body>
-
 [% PROCESS "analytics.tt2" %]
-
+</body>
 </html>

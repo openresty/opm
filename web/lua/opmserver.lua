@@ -14,17 +14,27 @@ local limit_req = require "resty.limit.req"
 local email = require "opmserver.email"
 local paginator = require "opmserver.paginator"
 local view = require "opmserver.view"
+local github_oauth = require "opmserver.github_oauth"
+local log = require "opmserver.log"
 local utils = require "opmserver.utils"
+local exit_ok = utils.exit_ok
+local exit_err = utils.exit_err
 local read_file = utils.read_file
+local get_post_args = utils.get_post_args
+local gen_random_string = utils.gen_random_string
 local send_email = email.send_mail
+local resty_cookie = require("resty.cookie")
+local common_conf = require("opmserver.conf").load_entry("common")
 
 
+local ngx_time = ngx.time
 local re_find = ngx.re.find
 local re_match = ngx.re.match
 local re_gsub = ngx.re.gsub
 local str_find = string.find
 local str_len = string.len
 local ngx_var = ngx.var
+local ngx_redirect = ngx.redirect
 local say = ngx.say
 local req_read_body = ngx.req.read_body
 local decode_json = cjson.decode
@@ -47,7 +57,17 @@ local prefix = ngx.config.prefix()
 
 local incoming_directory = "/opm/incoming"
 local final_directory = "/opm/final"
-
+local env = common_conf.env
+local deferred_deletion_days = common_conf.deferred_deletion_days or 3
+local LOGIN_COOKIE_MAX_TTL = 86400 * 14 -- two weeks
+local cookie_tab = {
+    key = "OPMID",
+    path = "/",
+    secure = env == "prod" and true or false,
+    httponly = true,
+    samesite = "Strict",
+}
+local reset_ck_tab = { key = "OPMID", value = '', max_age = 0, path = "/", }
 local MIN_TARBALL_SIZE = 136
 
 
@@ -463,6 +483,10 @@ function db_insert_user_info(ctx, user_info)
     local user_id = res[1].id
 
     if not user_id then
+        if not ctx then
+            return nil, "user_id not found"
+        end
+
         return log_and_out_err(ctx, 500,
                                "failed to create user record ",
                                "in the database")
@@ -491,12 +515,15 @@ function db_update_user_info(ctx, user_info, user_id)
           .. ", github_created_at = " .. q(u.created_at)
           .. ", github_updated_at = " .. q(u.updated_at)
           .. ", updated_at = now() where id = " .. user_id
-                        -- user_id is from db,
-                        -- so no injection possible
 
-    local res = query_db(sql)
+    local res, err = query_db(sql)
     -- say("update user res: ", cjson.encode(res))
+    if err then
+        return nil, err
+    end
+
     assert(res.affected_rows == 1)
+    return true
 end
 
 
@@ -1657,11 +1684,12 @@ local pkg_base_sql =
     [[select package_name, version_s, abstract, indexed, uploader,]]
     .. [[ org_account, to_char(t.updated_at,'YYYY-MM-DD HH24:MI:SS')]]
     .. [[ as upload_updated_at, users.login as uploader_name,]]
-    .. [[ orgs.login as org_name, repo_link]]
+    .. [[ orgs.login as org_name, repo_link, is_deleted]]
     .. [[ from (select package_name, uploader, org_account,]]
     .. [[ max(version_s) as version_s, last(abstract) as abstract,]]
     .. [[ last(indexed) as indexed, max(updated_at) as updated_at, ]]
-    .. [[ last(repo_link) as repo_link ]]
+    .. [[ last(repo_link) as repo_link, ]]
+    .. [[ last(is_deleted) as is_deleted ]]
     .. [[ from uploads where indexed = true ]]
     .. [[ group by package_name, uploader, org_account) t]]
     .. [[ left join users on t.uploader = users.id]]
@@ -1673,10 +1701,16 @@ local routes = {
     packages = 'do_packages_page',
     uploads = 'do_uploads_page',
     docs = 'do_docs_page',
+    login = 'do_login_page',
+    logout = 'do_logout_page',
+    github_auth = 'do_github_auth_callback',
+    api_delete_pkg = 'do_delete_pkg',
+    api_cancel_deleting_pkg = 'do_cancel_deleting_pkg',
 }
 
 
 local function show_error_page(error_info)
+    log.error("show error info: ", error_info)
     view.show("error", {
         error_info = error_info,
     })
@@ -1851,6 +1885,7 @@ function _M.do_show_uploader(uploader_name)
     local packages = query_db(sql)
 
     view.show("uploader", {
+        uploader_page = true,
         uploader = uploader,
         uploader_name = uploader_name,
         packages = packages,
@@ -2046,6 +2081,373 @@ function _M.do_docs_page()
     view.show("docs", {
         doc_html = doc_html,
     })
+end
+
+
+function _M.do_login_page()
+    local github_login_url = github_oauth.get_login_url()
+
+    view.show("login", {
+        github_login_url = github_login_url,
+    })
+end
+
+
+local function db_insert_user_session(user)
+    local u = user
+    local q = quote_sql_str
+    local sql
+
+    local ip = ngx_var.http_x_forwarded_for or ngx_var.remote_addr
+    local ua = ngx_var.http_user_agent
+    local token = gen_random_string()
+    sql = "insert into users_sessions (user_id, token, ip, user_agent) "
+          .. "values ("
+          .. q(u.id) .. ", "
+          .. q(token) .. ", "
+          .. q(ip) .. ", "
+          .. q(ua) .. ") returning id"
+
+    local res = query_db(sql)
+    local session_id = res[1].id
+
+    if not session_id then
+        return nil, "session_id not found"
+    end
+
+    return token
+end
+
+
+local function set_cookie(opmid, remember)
+    local ck = cookie_tab
+    ck.key = "OPMID"
+    ck.value = opmid
+    ck.max_age = nil
+    ck.httponly = true
+
+    if remember then
+        ck.max_age = LOGIN_COOKIE_MAX_TTL
+    end
+
+    local cookie = resty_cookie:new()
+    cookie:set(ck)
+end
+
+
+local function get_opmid()
+    local cookie = ngx_var.http_cookie
+    if not cookie then
+        return nil
+    end
+
+    local sid_name = 'OPMID'
+    local ssid, err = re_match(cookie, sid_name .. "=([\\da-z]{32})", "jo")
+    if err then
+        log.error("failed to find session id from cookie: ", err)
+        return nil
+    end
+
+    if not ssid then
+        return nil
+    end
+
+    return ssid[1]
+end
+
+
+local function get_current_user()
+    local ctx = ngx.ctx
+    if ctx.curr_user then
+        return ctx.curr_user
+    end
+
+    local token = get_opmid()
+    if not token then
+        return nil, "OPMID missing", true
+    end
+
+    local sql = "select * from users_sessions where token = "
+                .. quote_sql_str(token) .. " limit 1"
+    local res, err = query_db(sql)
+    if err then
+        log.error(err)
+        return nil, "query db failed"
+    end
+
+    if not res or #res == 0 then
+        return nil, "session not found"
+    end
+
+    local user_id = res[1].user_id
+    sql = "select * from users where id = " .. user_id
+    res, err = query_db(sql)
+    if err then
+        log.error(err)
+        return nil, "query db failed"
+    end
+
+    if not res then
+        return nil, "user not found"
+    end
+
+    local curr_user = res[1]
+    curr_user.opmid = token
+    curr_user.profile_url = "/uploader/" .. curr_user.login
+    ctx.curr_user = res
+
+    return curr_user
+end
+
+_M.get_current_user = get_current_user
+
+
+function _M.do_github_auth_callback()
+    local sql, err
+    local code = get_req_param('code', '')
+    if str_len(code) == '' then
+        return show_error_page("missing code")
+    end
+
+    local user_info, err, access_token = github_oauth.auth(code)
+    if not user_info then
+        return show_error_page("oauth failed: " .. err)
+    end
+
+    local user_id, verified_email
+    local new_user = false
+    local login = user_info.login
+    sql = "select id from users where login = "
+          .. quote_sql_str(login) .. " limit 1"
+
+    local rows = query_db(sql)
+
+    if #rows == 0 then
+        user_id, err = db_insert_user_info(nil, user_info)
+        if not user_id  then
+            return show_error_page("insert user failed: " .. err)
+        end
+        new_user = true
+
+    else
+        user_id = rows[1].id
+        db_update_user_info(nil, user_info, user_id)
+    end
+
+    sql = "select * from users where id = "
+          .. user_id .. " limit 1"
+
+    local rows, err = query_db(sql)
+    if #rows == 0 then
+        return show_error_page("query user failed: " .. err)
+    end
+
+    local user = rows[1]
+    verified_email = user.verified_email
+
+    if not verified_email then
+        verified_email, err = github_oauth.get_verified_email(access_token)
+        if not verified_email then
+            log.error(err)
+
+        else
+            db_insert_user_verified_email(nil, user_id, verified_email)
+        end
+    end
+
+    local token, err = db_insert_user_session(user)
+    if not token then
+        return show_error_page("create session failed: " .. err)
+    end
+
+    set_cookie(token, true)
+
+    ngx_redirect("/uploader/" .. login)
+end
+
+
+local function clear_cookies()
+    local cookie = resty_cookie:new()
+    reset_ck_tab.key = 'OPMID'
+    cookie:set(reset_ck_tab)
+end
+
+
+local function get_curr_session(opmid)
+    local err
+    if not opmid then
+        opmid, err = get_opmid()
+        if not opmid then
+            return nil, err
+        end
+    end
+
+    local sql = "select * from users_sessions where token = "
+                .. quote_sql_str(opmid)
+
+    local res, err = query_db(sql)
+    if err then
+        log.error(err)
+        return nil, "query failed"
+    end
+
+    if not res or #res == 0 then
+        return nil, "session not found"
+    end
+
+    local session = res[1]
+
+    return session
+end
+
+
+local function remove_session(curr_user)
+    local opmid = curr_user.opmid
+    local session, err = get_curr_session(opmid)
+    if not session then
+        return nil, err
+    end
+
+    local session_id = session.id
+    local sql = "delete from users_sessions where id = "
+                .. quote_sql_str(session_id)
+
+    local res, err = query_db(sql)
+    if err then
+        return nil, err
+    end
+
+    return true
+end
+
+
+function _M.do_logout_page()
+    local curr_user, err = get_current_user()
+    clear_cookies()
+
+    if err then
+        log.error("invalid login status: ", err)
+    end
+
+    if not curr_user then
+        ngx_redirect("/index")
+    end
+
+    local res, err = remove_session(curr_user)
+    if err then
+        log.error('remove session failed: ', err)
+    end
+
+    ngx_redirect("/index")
+end
+
+
+function _M.do_delete_pkg(cancel)
+    ngx.req.set_header("default_type", "application/json;")
+
+    if req_method() ~= "POST" then
+        return exit_err("invalid request method")
+    end
+
+    local q = quote_sql_str
+    local sql, rows
+
+    local curr_user, err = get_current_user()
+    if not curr_user then
+        log.error("get curr_user failed: ", err)
+        return exit_err("please sign in first")
+    end
+
+    local args, err = get_post_args()
+    if not args then
+        if err then
+            log.error("invalid post request:", err)
+        end
+        return exit_err("invalid request")
+    end
+
+    local pkg_account = args.pkg_account
+    if not pkg_account then
+        return exit_err("missing pkg_account")
+    end
+
+    local pkg_name = args.pkg_name
+    if not pkg_name then
+        return exit_err("missing pkg_name")
+    end
+
+    local org_id
+
+    if pkg_account ~= curr_user.login then
+        sql = "select id from orgs where login = " .. q(pkg_account)
+
+        rows = query_db(sql)
+        if #rows == 0 then
+            return exit_err("org [" .. pkg_account .. "] not found")
+
+        else
+            org_id = assert(rows[1].id)
+            sql = "select id from org_ownership where user_id = "
+                  .. curr_user.id .. " and org_id = " .. org_id
+            rows = query_db(sql)
+            if #rows == 0 then
+                err = "you are not the member of org [" .. pkg_account .. "]"
+                return exit_err(err)
+            end
+        end
+    end
+
+    sql = "select id from uploads where package_name = " .. q(pkg_name)
+          .. " and " .. (org_id and
+          ("org_account = " .. org_id) or ("uploader = " .. curr_user.id))
+
+    rows = query_db(sql)
+    if #rows == 0 then
+        if not org_id then
+            err = "current user not uploaded the pkg: " .. pkg_name
+
+        else
+            err = "no org[" .. pkg_account .. "] uploaded the pkg: "
+                  .. pkg_name
+        end
+
+        return exit_err(err)
+    end
+
+    local is_deleted = "true"
+    local action_str = "delete pkg"
+    if cancel then
+        is_deleted = "false"
+        action_str = "cancel deleting pkg"
+    end
+
+    local curr_time = ngx_time()
+
+    sql = "update uploads set is_deleted = " .. is_deleted
+          .. ", deleted_at_time = " .. curr_time
+          .. " where package_name = "
+          .. q(pkg_name) .. " and " .. (org_id and
+          ("org_account = " .. org_id) or ("uploader = " .. curr_user.id))
+
+    local res = query_db(sql)
+    if not res or not res.affected_rows or res.affected_rows <= 0 then
+        return exit_err(action_str .. " failed")
+    end
+
+    if cancel then
+        action_str = action_str .. " successfully"
+
+    else
+        action_str = "This pkg will be deleted in "
+                     .. deferred_deletion_days .. " days"
+    end
+
+    return exit_ok(action_str)
+end
+
+
+function _M.do_cancel_deleting_pkg()
+    return _M.do_delete_pkg(true)
 end
 
 

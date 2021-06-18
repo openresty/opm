@@ -309,3 +309,42 @@ pre {
   color: red;
   margin-left: 2px;
   font-size: 18px; }
+
+.sign-in {
+  margin: 0 auto;
+  text-align: center; }
+
+.button {
+    display: inline-block;
+    text-decoration: none;
+    background: #4d8d89;
+    line-height: 35px;
+    height: 35px;
+    padding: 0 30px;
+    font-size: 16px;
+    font-family: 'Open Sans', sans-serif;
+    border: 0;
+    border-radius: 5px;
+    color: #FFF;
+    cursor: pointer;
+}
+
+.delete-btn, .cancel-deleting-btn{
+    width: 1rem !important;
+    height: 1rem !important;
+    background-position: 0 15px;
+}
+
+.delete-pkg, .cancel-deleting-pkg{
+    overflow: hidden;
+}
+
+.delete-pkg:hover img{
+    transform: translateY(-50px);
+    filter: drop-shadow(#AF0C0C 0 50px);
+}
+
+.cancel-deleting-pkg:hover img{
+    transform: translateY(-50px);
+    filter: drop-shadow(#AF0C0C 0 50px);
+}
