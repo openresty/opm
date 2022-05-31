@@ -1962,7 +1962,11 @@ sub init_installation_ctx ($) {
         make_path $manifest_dir;
     }
 
-    my $resty = File::Spec->catdir($FindBin::RealBin, "resty");
+    my $resty = File::Spec->catfile($install_dir, "bin", "resty");
+    if (!-f $resty || !-x $resty) {
+        $resty = File::Spec->catfile($install_dir, "..", "bin", "resty");
+    }
+
     if (!-f $resty || !-x $resty) {
         $resty = "resty";  # relying on PATH now
     }
