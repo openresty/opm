@@ -1965,10 +1965,9 @@ sub init_installation_ctx ($) {
     my $resty = File::Spec->catfile($install_dir, "bin", "resty");
     if (!-f $resty || !-x $resty) {
         $resty = File::Spec->catfile($install_dir, "..", "bin", "resty");
-    }
-
-    if (!-f $resty || !-x $resty) {
-        $resty = "resty";  # relying on PATH now
+        if (!-f $resty || !-x $resty) {
+            $resty = "resty";  # relying on PATH now
+        }
     }
 
     opendir my $dh, $manifest_dir
