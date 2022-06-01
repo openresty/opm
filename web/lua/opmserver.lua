@@ -1846,7 +1846,7 @@ function _M.do_show_package(account, pkg_name)
     if pkg_doc then
         -- extract content from the body tag in the package document page
         -- for example, get "doc content" from the following structure
-        -- <body style=“some”>
+        -- <body style="some">
         -- doc content
         -- </body>
 
