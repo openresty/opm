@@ -1844,6 +1844,12 @@ function _M.do_show_package(account, pkg_name)
     local pkg_doc = pkg_info.doc
 
     if pkg_doc then
+        -- extract content from the body tag in the package document page
+        -- for example, get "doc content" from the following structure
+        -- <body>
+        -- doc content
+        -- </body>
+
         local m, err = re_match(pkg_doc, [[<body[^>]*>([\s\S]+)</body>]], 'jo')
         if m then
             pkg_doc = m[1]
