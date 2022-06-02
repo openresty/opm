@@ -478,7 +478,7 @@ template_map['package_info.tt2'] = function (context)
     local output = {}
     local i = 0
 
-i = i + 1 output[i] = '\n<div class="main_col">\n<div class="split_header">\n    <h2>'
+i = i + 1 output[i] = '\n<div class="main_col package_page">\n<div class="split_header">\n    <h2>'
 -- line 4 "package_info.tt2"
 
 -- FILTER
@@ -517,11 +517,29 @@ i = i + 1 output[i] = stash_get(stash, {'pkg_info', 0, 'repo_link', 0})
 i = i + 1 output[i] = '" target="_blank">'
 -- line 19 "package_info.tt2"
 i = i + 1 output[i] = stash_get(stash, {'pkg_info', 0, 'repo_link', 0})
-i = i + 1 output[i] = '</a>\n        </div>\n    </div>\n</div>\n\n<div>\n'
+i = i + 1 output[i] = '</a>\n        </div>\n    </div>\n</div>\n\n<div class="installer">\n    <pre class="highlight lang_bash term_snippet"><code><span class="nv">$ </span>opm get '
 -- line 25 "package_info.tt2"
+i = i + 1 output[i] = stash_get(stash, 'account')
+i = i + 1 output[i] = '/'
+-- line 25 "package_info.tt2"
+
+-- FILTER
+local value
+do
+    local output = {}
+    local i = 0
+
+i = i + 1 output[i] = stash_get(stash, 'pkg_name')
+
+    value = context.filter(output, 'html', {})
+end
+i = i + 1 output[i] = value
+
+i = i + 1 output[i] = '</code></pre>\n</div>\n\n<div>\n'
+-- line 29 "package_info.tt2"
 i = i + 1 output[i] = stash_get(stash, 'pkg_doc')
 i = i + 1 output[i] = '\n</div>\n\n<h3>Authors</h3>\n<div class="description">\n    <p>\n    '
--- line 31 "package_info.tt2"
+-- line 35 "package_info.tt2"
 
 -- FILTER
 local value
@@ -536,7 +554,7 @@ end
 i = i + 1 output[i] = value
 
 i = i + 1 output[i] = '\n    </p>\n<div>\n\n<h3>License</h3>\n<div class="description">\n    <p>\n    '
--- line 38 "package_info.tt2"
+-- line 42 "package_info.tt2"
 
 -- FILTER
 local value
@@ -551,16 +569,16 @@ end
 i = i + 1 output[i] = value
 
 i = i + 1 output[i] = '\n    </p>\n<div>\n'
--- line 49 "package_info.tt2"
+-- line 53 "package_info.tt2"
 if tt2_true(stash_get(stash, {'pkg_info', 0, 'dep_info', 0})) then
 i = i + 1 output[i] = '\n<h3>Dependencies</h3>\n<div class="description">\n    <p>\n    '
--- line 46 "package_info.tt2"
+-- line 50 "package_info.tt2"
 i = i + 1 output[i] = stash_get(stash, {'pkg_info', 0, 'dep_info', 0})
 i = i + 1 output[i] = '\n    </p>\n</div>'
 end
 
 i = i + 1 output[i] = '\n\n<h3>Versions</h3>\n\n<section>\n'
--- line 54 "package_info.tt2"
+-- line 58 "package_info.tt2"
 i = i + 1 output[i] = context.process(context, 'package_list.tt2')
 i = i + 1 output[i] = '\n</section>\n</div>\n'
 
