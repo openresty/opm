@@ -1,5 +1,5 @@
 
-<div class="main_col">
+<div class="main_col package_page">
 <div class="split_header">
     <h2>[% pkg_name | html %]
     </h2>
@@ -19,6 +19,10 @@
             <h3>Repo</h3><a href="[% pkg_info.repo_link %]" target="_blank">[% pkg_info.repo_link %]</a>
         </div>
     </div>
+</div>
+
+<div class="installer">
+    <pre class="highlight lang_bash term_snippet"><code><span class="nv">$ </span>opm get [% account %]/[% pkg_name | html %]</code></pre>
 </div>
 
 <div>

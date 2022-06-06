@@ -38,6 +38,9 @@ hr {
   border: 0;
   margin: 20px 0; }
 
+.nv {
+  color: #ff9898; }
+
 input {
   font-family: 'Open Sans', sans-serif;
   font-size: 16px; }
@@ -304,6 +307,31 @@ pre {
 
 .package_page .description {
   margin-top: 30px; }
+
+.package_page .installer {
+  width: 960px;
+  margin: 15px auto; }
+  .package_page .installer pre {
+    background: #323744;
+    color: white;
+    margin: 0;
+    position: relative;
+    padding-left: 95px; }
+    .package_page .installer pre:before {
+      content: "Install:";
+      font-family: "Open Sans", sans-serif;
+      font-size: 12px;
+      text-transform: uppercase;
+      font-weight: bold;
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      line-height: 48px;
+      padding: 0 10px;
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.2);
+      color: rgba(255, 255, 255, 0.6); }
 
 .error_info {
   color: red;
