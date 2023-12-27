@@ -1021,7 +1021,7 @@ sub install_target ($$) {
 
             if ($name eq 'luajit') {
                 my $out = `$resty -e 'print(jit.version)'`;
-                if ($? != 0 || !defined $out || $out !~ /^LuaJIT (\d+\.\d+\.\d+)/) {
+                if ($? != 0 || !defined $out || $out !~ /^LuaJIT (\d+\.\d+\.(?:\d+|ROLLING))/) {
                     err "$name is required but is not available ",
                         "according to $resty: ", $out // '', "\n";
                 }
