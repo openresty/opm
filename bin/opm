@@ -16,7 +16,7 @@ use Cwd qw( realpath cwd );
 use Digest::MD5 ();
 use File::Copy qw( copy move );
 use File::Temp qw( tempfile );
-use Getopt::Long qw( GetOptions :config no_ignore_case require_order);
+use Getopt::Long qw( GetOptions :config no_ignore_case no_auto_abbrev require_order );
 #use Data::Dumper qw( Dumper );
 
 my $MAX_DEPS = 100;
@@ -76,13 +76,19 @@ sub rebase_path ($$$);
 sub trim_curl_out ($);
 
 GetOptions("h|help",          \(my $help),
+           "V|version",       \(my $print_version),
            "cwd",             \(my $install_into_cwd),
            "install-dir=s",   \(my $user_install_dir),
-           "verbose",         \(my $verbose))
-   or usage(1);
+           "v|verbose",       \(my $verbose))
+    or usage(1);
 
 if ($help) {
     usage(0);
+}
+
+if ($print_version) {
+    print "opm $Version ($Config::Config{archname}, perl $^V)\n";
+    exit;
 }
 
 if (defined $user_install_dir && defined $install_into_cwd) {
@@ -90,11 +96,6 @@ if (defined $user_install_dir && defined $install_into_cwd) {
 }
 
 my $cmd = shift or usage(1);
-
-if ($cmd eq '-v') {
-    print "opm $Version ($Config::Config{archname}, perl $^V)\n";
-    exit;
-}
 
 # explicitly clear the environments to avoid breaking luajit and resty.
 delete $ENV{LUA_PATH};
@@ -2317,8 +2318,11 @@ sub usage {
 opm [options] command package...
 
 Options:
-    -h
-    --help              Print this help.
+    -h, --help          Print this help.
+
+    -V, --version       Print opm version and exit.
+
+    -v, --verbose       Display verbose output.
 
     --install-dir=PATH  Install into the specified PATH directory instead of the system-wide
                         OpenResty installation tree containing this tool.
