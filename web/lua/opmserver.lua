@@ -1766,31 +1766,39 @@ function _M.do_show_package(account, pkg_name)
 
     local user_id, org_id
 
-    local sql = "select id from users where login = " .. quoted_account
+    -- An account login can collide between a user and an organization (for
+    -- example when a personal GitHub account is later turned into an org).
+    -- Look the login up in both tables and merge the matching packages so
+    -- that org-owned uploads are not shadowed by a same-named user account.
 
-    local rows = query_db(sql)
-
-    if #rows == 0 then
-        sql = "select id from orgs where login = " .. quoted_account
-        rows = query_db(sql)
-
-        if #rows == 0 then
-            return show_error_page("account name " .. account .. " not found")
-        end
-
-        org_id = assert(rows[1].id)
-
-    else
+    local rows = query_db("select id from users where login = "
+                          .. quoted_account)
+    if #rows > 0 then
         user_id = assert(rows[1].id)
     end
 
-    local condition
-    if user_id then
-        condition = " users.id = " .. user_id
-
-    else
-        condition = " uploads.org_account = " .. org_id
+    rows = query_db("select id from orgs where login = " .. quoted_account)
+    if #rows > 0 then
+        org_id = assert(rows[1].id)
     end
+
+    if not user_id and not org_id then
+        return show_error_page("account name " .. account .. " not found")
+    end
+
+    -- personal uploads match on users.id (org_account is null), org uploads
+    -- match on uploads.org_account; the two sets are disjoint so there is no
+    -- double counting.
+    local conds = {}
+    if user_id then
+        conds[#conds + 1] = "users.id = " .. user_id
+    end
+    if org_id then
+        conds[#conds + 1] = "uploads.org_account = " .. org_id
+    end
+    local condition = "(" .. tab_concat(conds, " or ") .. ")"
+
+    local sql
 
     sql = [[select package_name, doc, version_s, abstract, indexed, authors, ]]
           .. [[licenses, is_original, dep_packages, dep_operators, ]]
