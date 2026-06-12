@@ -1334,22 +1334,24 @@ do
 
         local user_id, org_id
 
-        local sql = "select id from users where login = " .. quoted_account
+        -- An account login can collide between a user and an organization (for
+        -- example when a personal GitHub account is later turned into an org).
+        -- Look the login up in both tables so that org-owned uploads are not
+        -- shadowed by a same-named user account.
 
-        local rows = query_db(sql)
-
-        if #rows == 0 then
-            sql = "select id from orgs where login = " .. quoted_account
-            rows = query_db(sql)
-
-            if #rows == 0 then
-                return nil, nil, "account name " .. account .. " not found"
-            end
-
-            org_id = assert(rows[1].id)
-
-        else
+        local rows = query_db("select id from users where login = "
+                              .. quoted_account)
+        if #rows > 0 then
             user_id = assert(rows[1].id)
+        end
+
+        rows = query_db("select id from orgs where login = " .. quoted_account)
+        if #rows > 0 then
+            org_id = assert(rows[1].id)
+        end
+
+        if not user_id and not org_id then
+            return nil, nil, "account name " .. account .. " not found"
         end
 
         tab_clear(bits)
@@ -1402,20 +1404,20 @@ do
             pkg_ver = nil
         end
 
+        -- personal uploads match on the uploader (org_account is null), org
+        -- uploads match on uploads.org_account; the two sets are disjoint so
+        -- merging them with OR does not double count versions.
+        local conds = {}
         if user_id then
-            i = i + 1
-            bits[i] = " and org_account is null and uploader = "
-
-            i = i + 1
-            bits[i] = user_id
-
-        else
-            i = i + 1
-            bits[i] = " and org_account = "
-
-            i = i + 1
-            bits[i] = org_id
+            conds[#conds + 1] = "(org_account is null and uploader = "
+                                .. user_id .. ")"
         end
+        if org_id then
+            conds[#conds + 1] = "org_account = " .. org_id
+        end
+
+        i = i + 1
+        bits[i] = " and (" .. tab_concat(conds, " or ") .. ")"
 
         if latest then
             i = i + 1
