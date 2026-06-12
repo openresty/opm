@@ -96,7 +96,7 @@ fs.open(infile, 'r', function (err, fd) {
 
     fs.readFile(infile, 'utf8', function (err, data) {
         if (err) throw err;
-        console.log(marked(data, {
+        console.log(marked.parse(data, {
             renderer: renderer
         }));
     });
