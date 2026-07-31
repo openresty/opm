@@ -290,7 +290,7 @@ do
       local command, affected_rows
       if command_complete then
         command = command_complete:match("^%w+")
-        affected_rows = tonumber(command_complete:match("%d+%z$"))
+        affected_rows = tonumber(command_complete:match("(%d+)%z$"))
       end
       if row_desc then
         if not (data_rows) then
