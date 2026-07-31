@@ -12,7 +12,7 @@ html_files := $(patsubst web/docs/md/%.md,web/docs/html/%.html,$(md_files))
 INSTALL ?= install
 CP ?= cp
 
-VERSION ?= 0.0.10
+VERSION ?= 0.0.11
 RELEASE ?= 1
 
 .PRECIOUS: $(md_files)
