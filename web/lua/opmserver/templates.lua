@@ -424,7 +424,7 @@ MD5['login.tt2'] = "86993c745d119eb017f6afe74245cf08"
 Template['nav.tt2'] = function (stash)
     local out = {}
     local i = 0
-    i=i+1 out[i] = "\n<div class=\"header_inner\">\n<a href=\"https://openresty.org\">\n    <img src=\"https://openresty.org/images/logo.png\" width=\"64\">\n</a>\n<nav class=\"logo_panel\">\n<a href=\"/\">\n    OPM\n</a>\n</nav>\n\n<form method=\"GET\" action=\"/search\" class=\"header_search\">\n    <input type=\"text\" placeholder=\"Search Packages ...\" name=\"q\" value=\""
+    i=i+1 out[i] = "\n<div class=\"header_inner\">\n<a href=\"https://openresty.org\">\n    <img src=\"https://openresty.org/images/logo.webp\" width=\"64\">\n</a>\n<nav class=\"logo_panel\">\n<a href=\"/\">\n    OPM\n</a>\n</nav>\n\n<form method=\"GET\" action=\"/search\" class=\"header_search\">\n    <input type=\"text\" placeholder=\"Search Packages ...\" name=\"q\" value=\""
     i=i+1 out[i] = get(stash, 'query_words')
     i=i+1 out[i] = "\">\n</form>\n<nav class=\"nav_panel\">\n    <a href=\"/docs\">Docs</a>"
 
@@ -444,7 +444,7 @@ Template['nav.tt2'] = function (stash)
     return out
 end
 
-MD5['nav.tt2'] = "53e85a8509a2a22970e25d29c39d3da1"
+MD5['nav.tt2'] = "b913e0916c115923c1daaa38fc413ed9"
 
 Template['package_info.tt2'] = function (stash)
     local out = {}
