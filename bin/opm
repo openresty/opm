@@ -2123,7 +2123,7 @@ sub do_search {
 
     $out =~ s/.*?\r?\n\r?\n//s;
 
-    if ($status != 200) {
+    if ($status != 200 && $status != 404) {
         err "failed to search on server: status $status: $out\n";
     }
 
